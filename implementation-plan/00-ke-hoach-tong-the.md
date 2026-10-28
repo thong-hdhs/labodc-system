@@ -31,13 +31,12 @@ Không diễn giải công nghệ có tên trong đề xuất thành yêu cầu 
 | Giai đoạn | Ngày | Mục tiêu/gate chính | File chi tiết |
 |---|---:|---|---|
 | 0. Khám phá, baseline | D1–D4 | Chốt yêu cầu, chính sách, tiêu chí nghiệm thu và capacity | [01-khoi-dong-va-baseline.md](./01-khoi-dong-va-baseline.md) |
-| 1. Nền tảng + luồng đầu tiên | D5–D10 | Auth/RBAC và các vertical slice đầu | [02-nen-tang-va-danh-tinh.md](./02-nen-tang-va-danh-tinh.md) |
-| 2. Dự án/tuyển chọn | D11–D17 | Doanh nghiệp → Lab → dự án → sinh viên đăng ký | [03-du-an-va-tuyen-chon.md](./03-du-an-va-tuyen-chon.md) |
-| 3. Mentor/vận hành | D18–D24 | Nhóm, nhiệm vụ, template, báo cáo và đánh giá | [04-mentor-va-van-hanh.md](./04-mentor-va-van-hanh.md) |
-| 4. Tài chính/tích hợp/mobile | D25–D31 | Luồng quỹ, PayOS, Cloudinary, Flutter theo baseline | [05-tai-chinh-tich-hop-mobile.md](./05-tai-chinh-tich-hop-mobile.md) |
-| 5. Kiểm thử/production | D32–D40 | Hoàn thiện fullstack theo domain, UAT, rollout, bàn giao | [06-kiem-thu-production-ban-giao.md](./06-kiem-thu-production-ban-giao.md) |
+| 1. Nền tảng và MVP dự án/tuyển chọn | D5–D10 | Auth/RBAC và demo doanh nghiệp → Lab → công bố → Talent đăng ký | [02-nen-tang-va-danh-tinh.md](./02-nen-tang-va-danh-tinh.md), [03-du-an-va-tuyen-chon.md](./03-du-an-va-tuyen-chon.md) |
+| 2. Mentor, nhóm, vận hành và tài chính ban đầu | D11–D20 | Mentor/team/task/report; các lát cắt PayOS/ledger/file theo policy | [04-mentor-va-van-hanh.md](./04-mentor-va-van-hanh.md) |
+| 3. Search, Flutter, tích hợp và release candidate | D21–D31 | Mobile, search/cache, tài chính/tích hợp còn lại, regression và RC | [05-tai-chinh-tich-hop-mobile.md](./05-tai-chinh-tich-hop-mobile.md) |
+| 4. Kiểm thử/production | D32–D40 | Hardening, NFR, UAT, rollout và bàn giao | [06-kiem-thu-production-ban-giao.md](./06-kiem-thu-production-ban-giao.md) |
 
-Phân công **từng ngày cho cả hai người, có input/output và checkpoint tích hợp** tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md). File đó là nguồn chuẩn khi chia task; các file giai đoạn mô tả mục tiêu và gate.
+Phân công **từng ngày cho cả hai người, có input/output và checkpoint tích hợp** tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md). Theo quyết định chốt D1, file 07 là nguồn chuẩn về ngày và nội dung task; các file giai đoạn đã được căn chỉnh theo lịch đó. Lát cắt D7–D10 trong file 03 là phần chi tiết MVP nằm bên trong Giai đoạn 1, không phải giai đoạn nối tiếp sau D10.
 
 ## 4. Nhịp Agile và quy tắc vận hành
 

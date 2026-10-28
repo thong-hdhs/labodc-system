@@ -1,4 +1,4 @@
-# Hồ sơ Đầu ra D1 của Sinh viên A — Requirement IDs & Câu hỏi Nghiệp vụ
+# Hồ sơ đầu ra D1 của Sinh viên A và B — Requirement IDs, phân công và câu hỏi
 
 > **Người phụ trách:** Sinh viên A (Owner miền Auth, Enterprise, Lab Admin, System Admin, Project Lifecycle, Finance/PayOS & Hạ tầng)  
 > **Giai đoạn:** Giai đoạn 0 — Khởi động và chốt baseline (Ngày D1)
@@ -54,3 +54,114 @@
 | **Q-A08** | Báo cáo minh bạch (Transparency Report) | 1. Báo cáo minh bạch tài chính công bố những chỉ số nào và mức độ chi tiết đến đâu (công khai cho toàn bộ người dùng trong hệ thống hay chỉ các thành viên thuộc dự án đó mới xem được chi tiết dự án của mình)?<br>2. Có cần xuất báo cáo tài chính tháng ra file Excel/PDF theo mẫu cố định của UTH/Lab không? | `REQ-FIN-05` | *[Ghi phạm vi hiển thị báo cáo minh bạch và định dạng xuất file nếu có]* |
 | **Q-A09** | Phạm vi Redis, Elasticsearch & NFR | 1. Khách hàng/PO xác nhận Redis và Elasticsearch có phải là thành phần bắt buộc triển khai trên Production để nghiệm thu không, và cụ thể dùng cho tính năng nào (ví dụ: Elasticsearch cho tìm kiếm dự án; Redis cho cache danh sách dự án & blacklist JWT)?<br>2. Tiêu chí nghiệm thu NFR ('hàng trăm người dùng đồng thời', 'tải danh sách dự án < 5 giây', 'xử lý thanh toán < 3 giây', '99% uptime') được đo ở phân vị nào (P95 hay P99), bao nhiêu VU (Virtual Users) cụ thể và có loại trừ độ trễ mạng của bên thứ ba (PayOS) không? | `REQ-INFRA-01`<br>`REQ-INFRA-02`<br>`REQ-NFR-01..03` | *[Ghi ngưỡng đo cụ thể: số VU, P95/P99, cấu hình server đo tải]* |
 | **Q-A10** | Tài khoản AWS, Domain & Bàn giao Production | 1. Tài khoản AWS, tên miền (Domain/HTTPS) và chi phí hạ tầng cho môi trường Staging & Production do phía Khách hàng/Lab cấp hay nhóm tự chuẩn bị?<br>2. Sau ngày bàn giao D40, ai là người tiếp nhận quyền quản trị tối cao (System Admin, AWS root/IAM, DB backups) và trực vận hành (on-call)? | `REQ-INFRA-03`<br>`REQ-SYS-01` | *[Ghi thông tin người cấp AWS/Domain và người nhận bàn giao vận hành]* |
+
+---
+
+## 4. Yêu cầu của Sinh viên B — Talent, Mentor, Team và vận hành
+
+> **Người phụ trách:** Sinh viên B (Owner miền Talent, Mentor, Team/Leader, Task/Template usage, Report/Evaluation và client Flutter).
+> **Trạng thái:** Phân rã ban đầu; các quy tắc và ưu tiên cần PO/đại diện Lab xác nhận trước khi trở thành baseline.
+
+### 4.1 Yêu cầu chức năng
+
+| Req ID | Actor | Tên yêu cầu | Mô tả phạm vi của B | Ưu tiên ban đầu | Mốc dự kiến | Module / Path |
+|---|---|---|---|---|---|---|
+| **REQ-TAL-01** | Talent | Quản lý hồ sơ sinh viên | Sinh viên quản lý thông tin cá nhân, kỹ năng, chứng chỉ và portfolio; cần xác định trường bắt buộc, quyền xem và phạm vi dữ liệu được chia sẻ. | P0 (MVP) | D5–D6 | `apps/api/src/talent`; `apps/web/src/features/talent` |
+| **REQ-TAL-02** | Talent | Tìm và xem dự án | Xem danh sách/chi tiết các dự án đã được công bố và đang nhận đăng ký; hỗ trợ tiêu chí tìm kiếm/lọc đã được thống nhất. | P0 (MVP) | D7–D10 | `apps/api/src/talent`; `apps/web/src/features/talent` |
+| **REQ-TAL-03** | Talent | Đăng ký tham gia dự án | Gửi đăng ký vào dự án đủ điều kiện, xem trạng thái và hủy/rút đăng ký nếu chính sách cho phép; backend phải ngăn đăng ký trùng và đăng ký dự án không mở. | P0 (MVP) | D8–D10 | `apps/api/src/talent`; `apps/web/src/features/talent` |
+| **REQ-TAL-04** | Talent | Xem công việc được giao | Thành viên xem task/milestone và trạng thái công việc thuộc dự án/nhóm của mình; không truy cập dữ liệu nhóm khác. | P1 (Baseline) | D15; mobile D24 | `apps/api/src/tasks`; `apps/web/src/features/team` |
+| **REQ-MEN-01** | Mentor | Nhận và xử lý lời mời | Mentor được mời vào dự án có thể xem thông tin liên quan và chấp nhận/từ chối lời mời; thao tác phải gắn với đúng dự án và tài khoản. | P1 (Baseline) | D12 | `apps/api/src/mentor`; `apps/web/src/features/mentor` |
+| **REQ-MEN-02** | Mentor | Xem xét/phỏng vấn ứng viên | Mentor xem danh sách ứng viên thuộc dự án được giao và ghi nhận nhận xét/kết quả phỏng vấn nếu quy trình yêu cầu. | P1 (Baseline) | D11, tiếp tục D27 | `apps/api/src/mentor`; `apps/web/src/features/mentor` |
+| **REQ-TEAM-01** | Lab Admin / Mentor | Thành lập và quản lý nhóm | Tạo nhóm từ các ứng viên được chấp nhận, quản lý thành viên và vai trò trong phạm vi dự án; quy tắc tạo/sửa nhóm cần PO xác nhận. | P1 (Baseline) | D13 | `apps/api/src/teams`; `apps/web/src/features/team` |
+| **REQ-TEAM-02** | Mentor / Talent | Chỉ định trưởng nhóm | Hỗ trợ bổ nhiệm trưởng nhóm bởi mentor hoặc lựa chọn bởi nhóm theo chính sách được duyệt; giới hạn quyền trưởng nhóm trong nhóm được giao. | P1 (Baseline) | D13 | `apps/api/src/teams`; `apps/web/src/features/team` |
+| **REQ-TEAM-03** | Talent Leader | Đại diện nhóm trong giao tiếp | Trưởng nhóm đại diện nhóm trong trao đổi với Mentor, Lab và các bên liên quan theo phạm vi quyền được xác nhận; lưu lại nội dung/quyết định quan trọng nếu quy trình yêu cầu. | P1 (Baseline) | D13–D20 | `apps/api/src/teams`; `apps/web/src/features/team` |
+| **REQ-OPS-01** | Mentor / Talent Leader | Quản lý task và milestone theo mẫu | Mentor phân rã và theo dõi công việc bằng biểu mẫu Excel/Docs chuẩn do Lab cung cấp; hệ thống hỗ trợ quản lý/ghi nhận theo cách PO xác nhận. Không mặc định tích hợp Jira/Trello hay thay thế các mẫu chuẩn của Lab. | P1 (Baseline) | D11–D20 | `apps/api/src/tasks`; `apps/web/src/features/team` |
+| **REQ-OPS-02** | System Admin / Mentor | Sử dụng mẫu Excel/Docs | Mentor sử dụng mẫu chính thức để lập kế hoạch và báo cáo; phối hợp với owner System Admin về phiên bản mẫu, quyền tải lên/tải xuống và lưu trữ. B phụ trách luồng sử dụng trong nghiệp vụ; không nhận ownership cấu hình hệ thống của A. | P1 (Baseline) | D14; tiếp tục theo task/report | `apps/api/src/templates`; `apps/web/src/features/reports` |
+| **REQ-REP-01** | Mentor / Talent Leader | Nộp báo cáo tiến độ | Mentor lập báo cáo tháng/giai đoạn; trưởng nhóm có thể gửi báo cáo nhóm theo quyền được duyệt. Theo dõi trạng thái gửi, duyệt, yêu cầu chỉnh sửa và lịch sử báo cáo. | P1 (Baseline) | D16–D20 | `apps/api/src/reports`; `apps/web/src/features/reports` |
+| **REQ-REP-02** | Mentor / Talent | Đánh giá và phản hồi | Mentor đánh giá năng lực/hiệu quả và gửi phản hồi cho sinh viên theo tiêu chí được Lab xác nhận; quyền xem kết quả phải được xác định theo vai trò. | P1 (Baseline) | D17–D20 | `apps/api/src/reports`; `apps/web/src/features/mentor` |
+| **REQ-REP-03** | Talent Leader / Mentor | Quản lý phân phối phần quỹ của đội | Talent Leader quản lý/đề xuất việc phân phối phần quỹ của đội theo chính sách được duyệt; Mentor xác nhận theo quy trình. B sở hữu luồng nghiệp vụ nhóm và giao diện; A sở hữu ledger/payment core. Công thức, thẩm quyền cuối cùng và việc thực hiện giao dịch phải theo rulebook được PO/Finance phê duyệt. | P1 (Baseline) | D26; phụ thuộc rulebook tài chính | `apps/api/src/reports`; `apps/web/src/features/team` |
+
+Ưu tiên/mốc của B là đề xuất ban đầu, không phải baseline đã ký. Lịch chi tiết theo [file phân công từng ngày](../implementation-plan/07-phan-cong-tung-ngay.md).
+
+### 4.2 Yêu cầu client Flutter
+
+| Req ID | Actor | Tên yêu cầu | Phạm vi phân tích của B | Ưu tiên ban đầu | Mốc dự kiến |
+|---|---|---|---|---|---|
+| **REQ-MOB-01** | Talent (và actor khác nếu được duyệt) | Ứng dụng Flutter | Phân rã các luồng cần có trên mobile và dùng API chung với hệ thống. **Phạm vi lập kế hoạch hiện tại: Android**, theo lựa chọn đã chốt; cần PO/khách hàng xác nhận chính thức nền tảng, chức năng nghiệm thu và cách phân phối. | P1 (Baseline, chờ PO xác nhận) | Nền tảng D21–D24; hoàn thiện/tích hợp D28–D31 |
+
+Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, khám phá dự án, đăng ký/xem trạng thái, xem task được giao và nộp báo cáo/tài liệu nếu thuộc phạm vi. Chưa giả định mọi chức năng web đều phải có trên mobile.
+
+### 4.3 NFR, file và tài liệu thuộc miền B
+
+| Req ID / Hạng mục | Trách nhiệm của B | Mốc dự kiến | Phối hợp |
+|---|---|---|---|
+| **REQ-NFR-B-01 — UX Talent/Mentor** | Làm rõ và kiểm tra giao diện dễ sử dụng; có trạng thái loading, empty, success và error; thông báo lỗi không bị che giấu. | Xuyên suốt; UAT D35 | PO, người dùng thử, A về API error contract |
+| **REQ-NFR-B-02 — Quyền riêng tư theo vai trò/nhóm** | Xác định dữ liệu hồ sơ, ứng viên, nhóm, báo cáo và đánh giá được từng actor xem/sửa; bổ sung kiểm thử truy cập đúng/sai phạm vi cho API và client. | D1–D4 đặc tả; kiểm thử xuyên suốt | A owner auth/RBAC shared; B owner quy tắc nghiệp vụ miền B |
+| **REQ-FILE-B-01 — Portfolio và tài liệu** | Xác định các luồng B cần tải/xem tài liệu và quyền truy cập; kiểm thử client/luồng nghiệp vụ. Không tự quyết định chính sách lưu trữ hoặc cấu hình dịch vụ. | Khi triển khai profile/task/report | A owner hạ tầng/tích hợp Cloudinary theo phân công hiện tại |
+| **REQ-DOC-B — Tài liệu SDLC/UML 2.0** | Cập nhật phần miền Talent/Mentor/Team/Task/Report/Mobile trong URD, SRS, DDD, implementation docs, test docs, source docs và hướng dẫn sử dụng/cài đặt mobile khi cần. | Xuyên suốt D1–D40 | A phụ trách phần Enterprise/Lab/Finance/Infrastructure; thống nhất tài liệu dùng chung |
+
+### 4.4 Câu hỏi nghiệp vụ/UX của B
+
+| Mã CH | Chủ đề | Câu hỏi của Sinh viên B | Req ID liên quan | Phản hồi / quyết định |
+|---|---|---|---|---|
+| **Q-B01** | Hồ sơ Talent | Những trường hồ sơ nào bắt buộc? Kỹ năng/chứng chỉ có danh mục chuẩn không? Hồ sơ, portfolio và thông tin liên hệ được chia sẻ với doanh nghiệp, mentor hoặc người dùng nào? | `REQ-TAL-01` | *Chờ PO/Lab xác nhận* |
+| **Q-B02** | Điều kiện đăng ký | Điều kiện để sinh viên đăng ký dự án là gì? Có giới hạn số dự án/đơn đang hoạt động hoặc yêu cầu kỹ năng, chứng chỉ hay không? | `REQ-TAL-02`, `REQ-TAL-03` | *Chờ PO/Lab xác nhận* |
+| **Q-B03** | Rút đơn và trạng thái | Sinh viên được rút đơn ở những trạng thái nào và đến thời điểm nào? Danh sách trạng thái đăng ký, người thay đổi trạng thái và thông tin lý do cần hiển thị ra sao? | `REQ-TAL-03` | *Chờ PO/Lab xác nhận* |
+| **Q-B04** | Phỏng vấn/tuyển chọn | Phỏng vấn có bắt buộc cho mọi dự án hay tùy dự án? Ai tạo lịch/ghi kết quả; rubric và trạng thái ứng viên nào được dùng? | `REQ-MEN-02` | *Chờ PO/Mentor xác nhận* |
+| **Q-B05** | Thành lập nhóm | Ai có quyền tạo nhóm và chọn thành viên? Nhóm có giới hạn quy mô, số lượng mentor hoặc quy tắc thay đổi thành viên không? | `REQ-TEAM-01` | *Chờ PO/Lab xác nhận* |
+| **Q-B06** | Trưởng nhóm | Trưởng nhóm do mentor bổ nhiệm, nhóm bầu chọn hay cho phép cả hai? Ai xác nhận kết quả và khi nào được thay đổi trưởng nhóm? | `REQ-TEAM-02` | *Chờ PO/Mentor xác nhận* |
+| **Q-B06a** | Đại diện nhóm | Trưởng nhóm đại diện nhóm qua kênh nào, được trao đổi/quyết định trong phạm vi nào và nội dung nào cần lưu lịch sử? | `REQ-TEAM-03` | *Chờ PO/Mentor/Lab xác nhận* |
+| **Q-B07** | Task và milestone | Mentor giao task cho cá nhân hay nhóm? Có trạng thái, hạn hoàn thành, mức độ ưu tiên hoặc quy tắc cập nhật tiến độ chuẩn không? | `REQ-TAL-04`, `REQ-OPS-01` | *Chờ PO/Mentor xác nhận* |
+| **Q-B08** | Mẫu Excel/Docs | Lab cung cấp những mẫu nào và định dạng/phiên bản hiện hành là gì? Người dùng tải mẫu để làm ngoài hệ thống rồi tải lên, hay cần nhập/cập nhật các trường ngay trong hệ thống? Ai duyệt phiên bản mới? | `REQ-OPS-01`, `REQ-OPS-02` | *Chờ Lab/System Admin xác nhận* |
+| **Q-B09** | Báo cáo và nghiệm thu | Báo cáo tháng/giai đoạn gồm trường nào, hạn nộp và người duyệt là ai? Có quy trình trả lại/chỉnh sửa và mẫu nghiệm thu/deliverable bắt buộc không? | `REQ-REP-01` | *Chờ PO/Mentor/Lab xác nhận* |
+| **Q-B10** | Đánh giá và đóng góp | Ai đánh giá ai, theo rubric/chu kỳ nào? Sinh viên có xem phản hồi và điểm/đánh giá của mình không? Ai được xem/chỉnh sửa lịch sử đóng góp? | `REQ-REP-02`, `REQ-REP-03` | *Chờ PO/Mentor xác nhận* |
+| **Q-B11** | Phân phối phần quỹ của đội | Trong luồng Leader quản lý/đề xuất phân phối và Mentor xác nhận, cần ghi nhận những thông tin/trạng thái nào? Hệ thống chỉ ghi nhận quyết định hay có bước khởi tạo giao dịch chi tiền; ai có quyền phê duyệt cuối? | `REQ-REP-03` | *Chờ PO/Finance/Mentor xác nhận theo rulebook; phối hợp Q-A06/Q-A07* |
+| **Q-B12** | Flutter/Android | Android là nền tảng mục tiêu của kế hoạch B hiện tại. PO xác nhận Android có phải nền tảng nghiệm thu chính thức không? Cần phát hành APK nội bộ hay Google Play; actor và luồng nào bắt buộc trên app? | `REQ-MOB-01` | *Chờ PO xác nhận* |
+| **Q-B13** | Tệp portfolio/tài liệu | Những loại và kích thước tệp nào được phép? Tài liệu nào công khai, tài liệu nào chỉ nhóm/mentor/Lab xem được; có thời hạn lưu/xóa nào không? | `REQ-TAL-01`, `REQ-OPS-02` | *Chờ Lab/PO xác nhận; phối hợp owner Cloudinary* |
+
+### 4.5 Phụ thuộc kỹ thuật và phối hợp A/B
+
+| Phụ thuộc | Nhu cầu của B | Owner / việc cần thống nhất |
+|---|---|---|
+| **User/Auth/Role** | Định danh Talent, Mentor, Leader và quyền/ownership cho API/client. | A sở hữu Auth/RBAC implementation; B đặc tả quyền nghiệp vụ và test allow/deny cho miền B. |
+| **Project** | Danh sách/chi tiết dự án đúng trạng thái công bố và điều kiện nhận đơn. | A sở hữu Project lifecycle/status contract; B tiêu thụ contract này. |
+| **Application** | Tạo/xem/rút đơn, nhận trạng thái và xử lý chống trùng. | **B sở hữu workflow/schema Application**; A cung cấp Project status contract; hai bên review ranh giới tích hợp. |
+| **Team/mentor assignment** | Team tham chiếu application được duyệt, mentor được gán và quyền theo project. | B sở hữu miền Team/Mentor; thống nhất quan hệ và migration ownership trước khi code. |
+| **Template/System Admin** | Dùng mẫu trong task/report và quản lý đúng phiên bản. | A sở hữu System Admin/danh mục mẫu; B sở hữu luồng sử dụng template trong nghiệp vụ. |
+| **File storage** | Lưu/xem portfolio, template hoặc tài liệu báo cáo có kiểm soát quyền. | A sở hữu hạ tầng/tích hợp Cloudinary; B xác định use case, access rules và kiểm thử sử dụng. |
+| **Tài chính** | Talent Leader quản lý/đề xuất phân phối phần quỹ đội và Mentor xác nhận. | B sở hữu workflow nhóm; A sở hữu payment/ledger/API tài chính. Công thức, quyền phê duyệt và giao dịch chờ rulebook. |
+| **Lịch triển khai** | Các file giai đoạn trước có mốc khác lịch chi tiết. | Theo quyết định D1, file 07 là nguồn chuẩn; kế hoạch giai đoạn/roadmap đã được đồng bộ. |
+
+## 5. Kết quả cùng chốt D1 giữa Sinh viên A và B
+
+### 5.1 Ma trận owner và ranh giới shared
+
+| Requirement / miền | Owner chính | Ranh giới đã thống nhất |
+|---|---|---|
+| Auth, RBAC implementation, shared user/account/role | A | B cung cấp yêu cầu quyền Talent/Mentor/Leader và test allow/deny cho module B. |
+| Enterprise, proposal, Project lifecycle, Lab/System Admin | A | A sở hữu trạng thái/API Project; B tiêu thụ Project contract. |
+| Talent profile, discovery, Application workflow/schema | B | B sở hữu trải nghiệm và nghiệp vụ Application; A cung cấp trạng thái Project và review contract shared. |
+| Mentor, Team, Leader, Task, Template usage, Report, Evaluation, contribution | B | System Admin và quản trị danh mục template thuộc A; B sở hữu luồng sử dụng template. |
+| Payment, PayOS, ledger, 70/20/10, advance, finance reports | A | B sở hữu thao tác/UX Talent Leader trong phân phối phần quỹ đội; logic và ledger thuộc A. |
+| Cloudinary/hạ tầng file | A | B xác định use case, quyền nghiệp vụ và kiểm thử sử dụng cho profile/task/report. |
+| Flutter client | B | Android là mục tiêu lập kế hoạch hiện tại; PO còn phải xác nhận nền tảng/phạm vi nghiệm thu chính thức. |
+
+### 5.2 Quyết định và việc còn mở
+
+- **Đã chốt:** B sở hữu Application workflow/schema; A sở hữu Project lifecycle và contract trạng thái dự án.
+- **Đã chốt phạm vi phân rã:** Talent Leader đại diện nhóm trong giao tiếp; Leader quản lý/đề xuất phân phối phần quỹ đội, Mentor xác nhận theo policy.
+- **Chưa chốt nghiệp vụ:** trạng thái, điều kiện, rubric, quy mô nhóm, quyền đại diện và chi tiết template/report vẫn cần PO/Lab/Mentor xác nhận; chính sách tiền và thao tác giao dịch cần rulebook PO/Finance.
+- **Lịch chuẩn:** [file phân công từng ngày](../implementation-plan/07-phan-cong-tung-ngay.md) là nguồn chuẩn về nhiệm vụ/ngày; các file giai đoạn và roadmap được căn chỉnh theo lịch này.
+- **Workshop PO:** chưa có tên/liên hệ hoặc khung giờ nên chưa thể ghi là đã đặt lịch. Cần xác định PO, gửi đề nghị workshop D2, ghi người tham dự và quyết định vào decision log.
+
+### 5.3 Checklist hoàn thành D1 của Sinh viên B
+
+- [x] Phân rã yêu cầu Talent, Mentor, Team/Leader, Task/Template, Report/Evaluation và Flutter thành mã `REQ-*` riêng.
+- [x] Ghi actor, phạm vi, ưu tiên ban đầu và mốc dự kiến; đánh dấu ưu tiên/lịch là chưa được PO phê duyệt.
+- [x] Ghi các câu hỏi nghiệp vụ/UX riêng biệt để dùng trong workshop D2.
+- [x] Ghi phụ thuộc kỹ thuật và owner phối hợp; không nhận thay ownership shared của A.
+- [x] Ghi Android là lựa chọn lập kế hoạch hiện tại; chờ PO xác nhận chính thức.
+- [x] Gộp requirement IDs với A, xác định owner/ranh giới shared và ghi quyết định còn mở.
+- [ ] Xác định PO/liên hệ, đề xuất và xác nhận lịch workshop D2 với PO, Lab, mentor và đại diện Talent.
+
+**Checkpoint cuối D1:** A và B đã thống nhất danh sách yêu cầu, owner và ranh giới shared; các câu hỏi chưa quyết định được giữ lại cho PO/decision log, không biến giả định thành baseline.

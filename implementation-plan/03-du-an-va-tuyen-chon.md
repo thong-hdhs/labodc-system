@@ -1,61 +1,50 @@
-# Giai đoạn 2 — Dự án, công bố và tuyển chọn
+# Lát cắt MVP — Dự án, công bố và tuyển chọn
 
-**Thời hạn:** D11–D17  
-**Mục tiêu:** hoàn thành MVP end-to-end cho luồng doanh nghiệp → Lab → công bố dự án → sinh viên đăng ký, đồng thời tạo lõi dữ liệu dùng cho các phase vận hành sau.
+**Thời hạn:** D7–D10
+**Mục tiêu:** hoàn thành và demo luồng doanh nghiệp → Lab → công bố dự án → Talent đăng ký, theo lịch chi tiết chuẩn tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md). Nội dung này là lát cắt nghiệp vụ trong Giai đoạn 1 (D5–D10), không phải một giai đoạn nối tiếp sau D10.
 
-**Giới hạn nguồn lực:** hai sinh viên không chia thành frontend team/backend team. A sở hữu trọn vertical slices của enterprise/Lab/project lifecycle; B sở hữu trọn vertical slices của talent discovery/application. Nếu ở D4 estimate cho thấy thiếu capacity, ghi forecast đỏ và giữ baseline theo quyết định hiện tại; không gọi MVP là hoàn thành toàn sản phẩm.
-
-Phân công full-stack từng ngày tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md) là chi tiết ưu tiên; bảng ngày trong file này mô tả nội dung nghiệp vụ, không phải phân vai BE/FE.
+**Giới hạn nguồn lực:** A sở hữu project lifecycle, proposal/approval/publish và contract trạng thái dự án. B sở hữu Talent discovery và Application workflow/schema. Mỗi bên làm full-stack theo miền; thay đổi contract shared phải được thống nhất trước khi code.
 
 ## Đầu vào
 
-- Auth/RBAC, staging, API conventions và data model foundation từ phase 1.
-- Acceptance criteria và state machine cho enterprise, project proposal, project, candidate application.
-- Bộ trường profile/project, điều kiện đăng ký và chính sách dữ liệu đã được PO xác nhận.
-- Wireframes, API contract và test data.
+- Auth/RBAC và các contract API/data nền tảng.
+- Yêu cầu/acceptance criteria cho proposal, project state và application được PO xác nhận hoặc đánh dấu câu hỏi mở.
+- Trường hồ sơ/dự án, điều kiện đăng ký, test data và wireframes.
 
 ## Công việc theo ngày
 
 | Ngày | Công việc |
 |---|---|
-| D11 | Schema doanh nghiệp/profile/talent/project/proposal/application; migration, seed và data ownership |
-| D12 | API hồ sơ; tạo/sửa draft proposal; validation; upload avatar/tài liệu nếu đã được xác nhận |
-| D13 | Lab queue; request changes/approve/reject có lý do; authorization và audit transition |
-| D14 | Publish/unpublish/close project; enterprise status view; public project list/detail/search/filter |
-| D15 | Student application/withdraw theo rule; chống đăng ký trùng và xử lý project đóng đồng thời |
-| D16 | Web screens cho enterprise, Lab, talent; responsive, empty/loading/error; tích hợp API |
-| D17 | E2E luồng đầy đủ, review với PO/người dùng, sửa blocker; deploy staging; cập nhật traceability |
+| D7 | A làm proposal draft/submit; B làm danh sách/chi tiết/tìm kiếm dự án theo contract và trạng thái visibility do A sở hữu. |
+| D8 | A làm hàng đợi Lab, request info/approve/reject có lý do; B làm đăng ký/rút đăng ký theo policy, chống trùng và project đóng. |
+| D9 | A làm publish/unpublish/close và enterprise status; B làm trạng thái application và candidate view; kiểm tra quyền/visibility. |
+| D10 | Chạy E2E, sửa blocker, review PO/người dùng, cập nhật traceability và deploy/demo staging. |
+
+Profile doanh nghiệp và Talent được bắt đầu ở D6 theo phân công ngày; nền tảng/auth được xây xuyên suốt D5–D10 theo [02-nen-tang-va-danh-tinh.md](./02-nen-tang-va-danh-tinh.md).
 
 ## Đầu ra
 
-- Hồ sơ doanh nghiệp và hồ sơ sinh viên ở mức yêu cầu.
-- Hồ sơ talent có skills, certifications và portfolio theo trường dữ liệu đã duyệt.
-- CRUD proposal có draft/submit; Lab queue có request more info/approve/reject.
-- Dự án có trạng thái, publish controls, ngày mở/đóng và visibility.
-- Danh sách/chi tiết dự án, tìm kiếm/lọc theo tiêu chí đã baseline.
-- Student application, trạng thái, withdraw nếu policy cho phép; unique constraint/server-side idempotency.
-- Audit trail cho quyết định và state transition.
-- Web flows cho actor này; APIs documented; migrations/seed scripts.
-- Doanh nghiệp quản lý profile; báo cáo/acceptance/evaluation views được liên kết vào phase vận hành nếu thuộc baseline.
-- Integration/E2E tests và report pass/fail.
-- Demo MVP staging được PO review; ghi feedback thành backlog change-controlled.
+- Proposal draft/submit và Lab queue xử lý request-info/approve/reject.
+- Project state và thao tác publish/unpublish/close; danh sách/chi tiết chỉ hiện project hợp lệ.
+- Talent discovery/search/filter theo tiêu chí đã baseline.
+- Application, trạng thái và withdraw nếu policy cho phép; backend bảo vệ tính duy nhất và điều kiện đăng ký.
+- Audit trail cho quyết định và chuyển trạng thái; API/UI/migration/seed docs.
+- E2E test evidence và demo MVP staging được PO review; feedback thành backlog có kiểm soát thay đổi.
 
-## Chia việc với 2 sinh viên
+## Phân công và ownership
 
-- **Sinh viên A:** proposal/approval/publish vertical slices, mỗi slice gồm API/state/data + enterprise/Lab UI + tests.
-- **Sinh viên B:** project discovery/application vertical slices, mỗi slice gồm API query/validation/data + talent UI + tests; không chỉ làm giao diện.
-- **Cả hai:** dùng API contract/mocks để làm độc lập, review chéo và tích hợp E2E cuối ngày theo [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md).
-- A owner project lifecycle writes/migrations; B sở hữu Talent Application module và chỉ dùng contract Project do A cung cấp, tránh sửa cùng entity/schema.
+- **A:** proposal/review/publish/project lifecycle, API + schema/migration + enterprise/Lab UI + tests.
+- **B:** discovery/application, API + schema/migration thuộc Application + Talent UI + tests.
+- **Shared contract:** A cung cấp trạng thái Project; B sở hữu Application workflow/schema; hai bên review contract và integration tests.
 - **PO/khách hàng:** xác nhận trường bắt buộc, reason codes, điều kiện đăng ký và review demo.
-- Nếu có thêm người, ưu tiên QA độc lập hoặc mobile specialist thay vì thêm dashboard trang trí.
 
-## Gate kết thúc D17
+## Gate kết thúc D10
 
-- E2E chạy trên staging với ít nhất tài khoản doanh nghiệp, Lab và sinh viên.
-- Dự án chưa duyệt/đóng không bị đăng ký hoặc công bố ngoài ý muốn.
-- Không đăng ký trùng; lỗi được xử lý phía server.
-- Khách hàng duyệt luồng và dữ liệu nền cần thiết cho việc tạo team.
+- E2E chạy trên staging với doanh nghiệp, Lab và Talent.
+- Project chưa duyệt/chưa công bố/đóng không bị hiển thị hoặc nhận đơn trái quy tắc.
+- Application trùng bị từ chối phía server và quyền dữ liệu được kiểm tra.
+- PO đã review MVP hoặc các vấn đề chưa quyết định được ghi rõ với owner/deadline.
 
 ## Definition of Done
 
-Story có test evidence, API/UI đã tích hợp, quyền kiểm tra ở backend, migration chạy được từ database trống, staging demo không cần thao tác thủ công ngoài hướng dẫn.
+Story có test evidence; API/UI/data tích hợp; authorization server-side; migration chạy được từ database trống; staging demo tái tạo được theo hướng dẫn. Đây là MVP, không phải xác nhận hoàn tất baseline D40.

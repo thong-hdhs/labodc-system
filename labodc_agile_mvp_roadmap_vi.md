@@ -60,7 +60,7 @@ Các NFR ghi trong yêu cầu — 99% uptime, hàng trăm người dùng đồng
 
 **Đầu ra:** sơ đồ actor/use case, luồng nghiệp vụ, glossary, baseline yêu cầu đầy đủ, traceability matrix, backlog theo release, wireframe cho các actor, quyết định kiến trúc ban đầu, danh sách rủi ro và tiêu chí nghiệm thu.
 
-### Giai đoạn 1 — MVP vận hành dự án và đăng ký tham gia
+### Giai đoạn 1 — Nền tảng và MVP dự án/tuyển chọn (D5–D10)
 
 Đây là phiên bản nhỏ đầu tiên để xác nhận luồng và kiến trúc, không phải sản phẩm bàn giao cuối cùng.
 
@@ -76,26 +76,21 @@ Các NFR ghi trong yêu cầu — 99% uptime, hàng trăm người dùng đồng
 - Trang tổng quan theo vai trò và lịch sử hoạt động thiết yếu.
 - Dữ liệu mẫu có kiểm soát, hướng dẫn chạy cục bộ và triển khai production.
 
-**Không đưa vào MVP đầu tiên:** các hạng mục phức tạp này được hoãn khỏi lát cắt ban đầu, nhưng nếu thuộc yêu cầu khách hàng đã ký duyệt thì vẫn phải hoàn thành và nghiệm thu trước ngày 40: thanh toán production, phân bổ 70/20/10, cơ chế tạm ứng, ứng dụng Flutter, báo cáo minh bạch và các tích hợp dịch vụ bắt buộc. Mỗi hạng mục cần điều kiện đầu vào/đầu ra, chủ sở hữu nghiệp vụ và tiêu chí nghiệm thu rõ ràng.
+**Không đưa vào MVP đầu tiên:** các hạng mục phức tạp này được hoãn khỏi lát cắt D5–D10, nhưng nếu thuộc yêu cầu khách hàng đã ký duyệt thì vẫn phải hoàn thành và nghiệm thu trước ngày 40: thanh toán production, phân bổ 70/20/10, cơ chế tạm ứng, ứng dụng Flutter, báo cáo minh bạch và các tích hợp dịch vụ bắt buộc. Mỗi hạng mục cần điều kiện đầu vào/đầu ra, chủ sở hữu nghiệp vụ và tiêu chí nghiệm thu rõ ràng.
 
-### Giai đoạn 2 — Quản lý thực hiện dự án (phát triển sau MVP, trước D40)
+### Giai đoạn 2 — Mentor, nhóm, vận hành và tài chính ban đầu (D11–D20)
 
-- Thành lập nhóm, chỉ định trưởng nhóm và mentor.
-- Giao nhận đầu ra theo giai đoạn; tải lên tài liệu và biên bản nghiệm thu.
-- Biểu mẫu báo cáo tiến độ/tháng theo mẫu của Lab.
-- Đánh giá đóng góp và phản hồi mentor.
-- Yêu cầu thay đổi phạm vi, hủy dự án và quy trình phê duyệt.
-- Nhật ký kiểm toán đầy đủ hơn và xuất dữ liệu/báo cáo.
+- D11–D14: xử lý đổi scope/hủy, mentor review/invitation, quản lý Lab, lập nhóm/leader, system settings và task/template.
+- D15–D19: PayOS sandbox/webhook, report/deliverable, ledger/đánh giá/đóng góp, advance/reporting, transparency report và Cloudinary theo lịch phân công.
+- D20: tích hợp, E2E, cập nhật tài liệu/traceability và review staging.
 
-### Giai đoạn 3 — Tài chính, tích hợp và vận hành (phát triển sau MVP, trước D40 nếu thuộc baseline)
+### Giai đoạn 3 — Search, Flutter, tài chính và tích hợp hệ thống (D21–D31)
 
-- Tích hợp PayOS theo môi trường được khách hàng yêu cầu; kiểm thử sandbox trước khi production, xử lý webhook có xác thực và chống ghi nhận giao dịch trùng.
-- Sổ cái giao dịch, đối soát, phê duyệt thủ công và báo cáo tài chính.
-- Chỉ xem xét tự động hóa phân phối/tạm ứng sau khi chính sách, trách nhiệm, kiểm soát gian lận và quy trình hoàn trả được Lab phê duyệt.
-- Thông báo email, tìm kiếm nâng cao, tối ưu tải và đo lường khả năng mở rộng.
-- Xây và phát hành Flutter, Redis/Elasticsearch, Cloudinary và các thành phần AWS nếu khách hàng xác nhận chúng thuộc baseline bàn giao; không loại bỏ hạng mục chỉ vì MVP ban đầu là web.
+- D21–D28: search/cache, các luồng Flutter, payment reconciliation/error/refund, phân phối quỹ theo policy, báo cáo quản trị, deploy rehearsal và mobile build.
+- D29–D31: đóng requirement gaps, regression theo miền, tích hợp/security test và release candidate staging.
+- Mọi tích hợp/tài chính production chỉ hoạt động theo baseline, policy và phê duyệt đã ký; không bật tiền thật khi chưa đủ điều kiện.
 
-Các giai đoạn 1–3 là thứ tự phát triển trong cùng 40 ngày, không phải cam kết chuyển P1/P2 sang sau ngày bàn giao. Sau ngày 40 chỉ còn việc ngoài baseline hoặc các thay đổi được khách hàng phê duyệt riêng.
+Các giai đoạn 1–3 là thứ tự phát triển trong cùng 40 ngày, không phải cam kết chuyển yêu cầu baseline sang sau ngày bàn giao. Ngày và task chi tiết theo [file phân công từng ngày](./implementation-plan/07-phan-cong-tung-ngay.md), là nguồn chuẩn; các file giai đoạn được căn chỉnh theo lịch này. Sau ngày 40 chỉ còn việc ngoài baseline hoặc các thay đổi được khách hàng phê duyệt riêng.
 
 ## 4. Kế hoạch triển khai Agile trong 40 ngày
 
@@ -104,13 +99,12 @@ MVP là mốc kiểm chứng giữa chặng; ngày 40 phải hoàn tất toàn b
 | Giai đoạn | Ngày | Mục tiêu |
 |---|---:|---|
 | 0. Khởi động và baseline | D1–D4 | Chốt yêu cầu, chính sách, acceptance criteria, nguồn lực và khả thi |
-| 1. Nền tảng và danh tính | D5–D10 | CI/CD, môi trường, dữ liệu, JWT/RBAC, khung web/mobile |
-| 2. Dự án và tuyển chọn | D11–D17 | Đề xuất, duyệt, công bố, sinh viên đăng ký |
-| 3. Mentor và vận hành | D18–D24 | Nhóm, mentor/leader, task/template, báo cáo, đánh giá |
-| 4. Tài chính và tích hợp | D25–D31 | Quỹ/thanh toán theo policy, PayOS, Cloudinary, Flutter và thành phần baseline |
-| 5. Kiểm thử, UAT, production | D32–D40 | Hồi quy, NFR, UAT, rollout, nghiệm thu, bàn giao |
+| 1. Nền tảng và MVP dự án/tuyển chọn | D5–D10 | Auth/RBAC và luồng doanh nghiệp → Lab → công bố → Talent đăng ký |
+| 2. Mentor, nhóm, vận hành và tài chính ban đầu | D11–D20 | Mentor/team/task/report; các lát cắt PayOS/ledger/file theo policy |
+| 3. Search, Flutter, tài chính và tích hợp | D21–D31 | Mobile, search/cache, tài chính còn lại, regression và release candidate |
+| 4. Kiểm thử, UAT, production | D32–D40 | Hardening, NFR, UAT, rollout, nghiệm thu, bàn giao |
 
-Các giai đoạn là mốc kiểm soát. Với 2 người, không thể giả định BA, Backend, Web, Flutter, QA, Security và DevOps đều là luồng song song chuyên trách. QA, DevOps, security, tài liệu và spike tích hợp vẫn phải làm từ D1 nhưng sẽ cạnh tranh thời gian với phát triển. Cuối D4 cần forecast capacity toàn bộ baseline; nếu đỏ, báo cụ thể khoảng thiếu và xin PO/mentor hỗ trợ. Giữ baseline đã chốt, không âm thầm bỏ yêu cầu hay hạ tiêu chí nghiệm thu.
+Các giai đoạn là mốc kiểm soát theo [kế hoạch phân công từng ngày](./implementation-plan/07-phan-cong-tung-ngay.md), nguồn chuẩn về ngày và task. Với 2 người, không thể giả định BA, Backend, Web, Flutter, QA, Security và DevOps đều là luồng song song chuyên trách. QA, DevOps, security, tài liệu và spike tích hợp vẫn phải làm từ D1 nhưng sẽ cạnh tranh thời gian với phát triển. Cuối D4 cần forecast capacity toàn bộ baseline; nếu đỏ, báo cụ thể khoảng thiếu và xin PO/mentor hỗ trợ. Giữ baseline đã chốt, không âm thầm bỏ yêu cầu hay hạ tiêu chí nghiệm thu.
 
 **Cách tính capacity tại D4:** `2 người × số ngày làm thực tế × số giờ tập trung/người/ngày`, sau đó trừ thời gian họp, học tập, review, kiểm thử, tích hợp, UAT và sửa lỗi. Ví dụ 4 giờ tập trung/ngày trong 40 ngày chỉ tạo 320 giờ gross trước các phần bị trừ; không được lập kế hoạch theo giả định làm toàn thời gian nếu thực tế không phải vậy.
 

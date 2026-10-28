@@ -1,4 +1,4 @@
-# Giai đoạn 5 — Kiểm thử hệ thống, UAT, production và bàn giao
+# Giai đoạn 4 — Kiểm thử hệ thống, UAT, production và bàn giao
 
 **Thời hạn:** D32–D40  
 **Mục tiêu:** chứng minh toàn bộ baseline được đáp ứng; đưa phiên bản đã duyệt lên production; nghiệm thu và bàn giao vận hành, không chỉ kết thúc bằng bản build.

@@ -1,61 +1,61 @@
-# Giai đoạn 3 — Mentor, nhóm và vận hành dự án
+# Giai đoạn 2 — Mentor, nhóm, vận hành và lát cắt tài chính đầu tiên
 
-**Thời hạn:** D18–D24  
-**Mục tiêu:** hoàn thành các chức năng sau tuyển chọn: phân mentor/leader, nhóm, task theo template, báo cáo, đánh giá và quản lý vòng đời thực hiện dự án.
+**Thời hạn:** D11–D20
+**Mục tiêu:** sau MVP, hoàn thiện các workflow mentor/team/task/report và các lát cắt quản trị/tài chính đầu tiên theo phân công chuẩn ở [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md). Các mốc tài chính ở đây là sandbox/ledger theo policy đã duyệt; không mặc định bật giao dịch production.
 
-**Giới hạn nguồn lực:** phase này gồm nhiều domain/workflow độc lập. Hai sinh viên vibecode cần chốt scope/capacity ở D4; không nên giả định hoàn thành toàn bộ trong 7 ngày lịch nếu chưa estimate. Ưu tiên theo baseline được khách hàng phê duyệt, làm một workflow end-to-end mỗi lần và yêu cầu mentor/Lab phản hồi nhanh.
-
-Phân công theo owner và output full-stack từng ngày tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md); không chuyển toàn bộ API cho một người và UI cho người còn lại.
+**Giới hạn nguồn lực:** scope dày so với hai sinh viên. Mỗi ngày tập trung vào một vertical slice/người; mọi estimate/risk phải được cập nhật theo actual capacity. Không hạ baseline hay bỏ test một cách ngầm định.
 
 ## Đầu vào
 
-- Project/application/team schema và luồng staging từ phase 2.
-- Danh sách mẫu Excel/Docs chính thức và định nghĩa trường dữ liệu/template version.
-- Quy tắc chỉ định mentor/leader, phỏng vấn, đánh giá, nghiệm thu, contribution.
-- Luồng đổi scope/cancel, approver, lý do, thời hạn và ảnh hưởng tài chính.
-- Quyền truy cập và acceptance criteria ký bởi PO.
+- MVP Project/Application contract và staging flow.
+- Rule nghiệp vụ đã xác nhận hoặc danh sách decision/blocker có owner.
+- Danh sách mẫu Excel/Docs của Lab, quy tắc mentor/leader/team, report/evaluation và file access.
+- PayOS sandbox và rulebook tài chính; nếu chưa có phê duyệt thì chỉ xây/test phần không thực hiện tiền thật.
 
 ## Công việc theo ngày
 
 | Ngày | Công việc |
 |---|---|
-| D18 | Schema team/membership/mentor invitation/assignment; quyền theo project/team |
-| D19 | Invite/accept mentor; chỉ định/elect leader theo policy; tạo team từ các application được duyệt |
-| D20 | Task/milestone management và template Excel/Docs versioning; upload/download an toàn |
-| D21 | Báo cáo phase/month, trạng thái, deliverables, acceptance; lưu lịch sử nộp/duyệt |
-| D22 | Mentor feedback/evaluation, contribution records; xác nhận redistribution proposal theo policy |
-| D23 | Request scope change/cancellation, approve/reject, reason/audit; Lab project administration và summaries |
-| D24 | E2E test từ accepted candidate đến report/approval; review với mentor/Lab; fix blocker, staging release |
+| D11 | A: yêu cầu đổi scope/hủy và approval flow. B: mentor review/phỏng vấn ứng viên. |
+| D12 | A: Lab quản lý doanh nghiệp/dự án. B: mentor invitation/accept/decline. |
+| D13 | A: project budget/fund setup theo policy, chưa chuyển tiền. B: tạo nhóm và chỉ định/bầu leader theo policy; bao gồm trách nhiệm đại diện nhóm. |
+| D14 | A: system settings/technical users/RBAC admin. B: task/template setup, sử dụng biểu mẫu đúng phiên bản. |
+| D15 | A: payment order/intent trên PayOS sandbox. B: giao task/milestone cho nhóm. |
+| D16 | A: webhook verification/idempotency. B: nộp report/deliverable theo quy trình được duyệt. |
+| D17 | A: ledger và tính toán 70/20/10 theo rulebook. B: mentor evaluation/feedback và contribution records. |
+| D18 | A: delayed-payment/advance ledger và approval theo policy. B: báo cáo tháng/giai đoạn và luồng review. |
+| D19 | A: transparency/monthly finance reports. B: Cloudinary upload/download và quyền truy cập file cho portfolio/task/report. |
+| D20 | Tích hợp/regression theo hai miền, E2E, cập nhật tài liệu/traceability, sprint review staging và triage gaps. |
+
+Chi tiết input/output từng người theo ngày trong file 07 là nguồn chuẩn. Quyền quản trị danh mục template thuộc A/System Admin; B sở hữu chức năng dùng template trong quy trình mentor/team/report.
 
 ## Đầu ra
 
-- Team, member roles, mentor assignment/invitation, leader appointment/election.
-- Mentor có thể nhận/từ chối lời mời và phỏng vấn ứng viên khi quy trình yêu cầu; leader có luồng báo cáo và đề xuất/ghi nhận phân phối quỹ theo quyền đã ký.
-- Quyền xem/sửa theo team/project; không lộ hồ sơ đội khác.
-- Task/milestone và biểu mẫu chuẩn có version; upload/download có validation, giới hạn và audit.
-- Báo cáo tiến độ/tháng hoặc theo phase; nộp, sửa, duyệt, trả về.
-- Mentor evaluation/feedback; contribution records và quy trình xác nhận phân phối.
-- Scope-change/cancellation request flow với phê duyệt đúng actor.
-- Lab dashboard quản lý project/team/mentor/talent và summary/report theo yêu cầu.
-- System Admin quản lý template Excel/Docs, cấu hình hệ thống và technical users theo quyền đã duyệt.
-- Doanh nghiệp xem báo cáo, kết quả nghiệm thu và đánh giá; yêu cầu đổi scope/hủy được liên kết với approval flow.
-- Test cases cho workflow, ownership, file access, approval và audit.
+- Mentor invitation, review/phỏng vấn theo rule đã duyệt.
+- Team/member roles, leader appointment/election và trách nhiệm giao tiếp của leader theo phạm vi xác nhận.
+- Task/milestone và quy trình dùng mẫu Excel/Docs chuẩn của Lab; không mặc định thay thế bằng công cụ quản lý ngoài.
+- Report phase/month, deliverables, review/return, mentor evaluation, feedback và contribution history.
+- Scope-change/cancellation request cùng approval/audit.
+- PayOS sandbox, webhook protection, ledger/fund calculations và advance flow chỉ theo policy ký duyệt.
+- Lab/admin summaries, transparency report và Cloudinary file flow có quyền hạn.
+- Test cases, integration/E2E evidence, staging release và cập nhật traceability.
 
-## Chia việc với 2 sinh viên
+## Chia việc
 
-- **Sinh viên A:** full-stack scope-change/cancellation và Lab project/admin/fund flows (API + UI + data + tests), theo ngày tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md).
-- **Sinh viên B:** full-stack mentor/team/leader/task/template/report/evaluation (API + UI + data + tests); owns các module nghiệp vụ này.
-- **Cả hai:** API/schema contract trước code, test quyền/file/state và review chéo; không chia A làm BE, B làm FE.
-- **PO/mentor/Lab:** cung cấp mẫu và duyệt rubric, quyền chỉ định leader, approval matrix đúng hạn.
-- Nếu có reviewer ngoài, ưu tiên rà soát file-upload/security và nghiệp vụ vận hành.
+- **A:** Enterprise/Lab/Project/Finance/System Admin, bao gồm payment core, ledger, approvals và system template administration.
+- **B:** Talent/Mentor/Team/Leader/Task/Template usage/Report/Evaluation và Cloudinary user workflows.
+- **Cả hai:** review chéo, API/schema contract, kiểm thử ownership/file/state, tích hợp staging và báo cáo capacity.
+- **PO/Finance/Mentor/Lab:** cung cấp policy, mẫu, rubric và phê duyệt nghiệp vụ; không giao nhóm tự suy diễn quy tắc tài chính.
 
-## Gate kết thúc D24
+Luồng Talent Leader quản lý/đề xuất phân phối phần quỹ của đội và Mentor xác nhận được triển khai ở D26 theo [kế hoạch phân công từng ngày](./07-phan-cong-tung-ngay.md), phụ thuộc rulebook tài chính đã duyệt.
 
-- Có thể demo từ application được duyệt đến team/mentor assignment, task/report và phản hồi.
-- Báo cáo và template khớp mẫu Lab; phiên bản template được nhận diện.
-- Không ai có thể duyệt request hoặc đọc/ghi dữ liệu dự án ngoài quyền.
-- Các quyết định liên quan tiền không được tự động hóa nếu rulebook chưa được ký; trường hợp đó phải được escalated như blocker baseline, không âm thầm bỏ tính năng.
+## Gate kết thúc D20
+
+- Có thể demo các luồng mentor → team → task/report/evaluation, cùng các lát cắt tài chính đã được policy cho phép.
+- Quyền đọc/ghi/duyệt theo project/team được kiểm thử; file và dữ liệu nhóm không lộ chéo.
+- Quy tắc tiền chưa ký là blocker; không tự động hóa hoặc bật giao dịch thật dựa trên giả định.
+- Mọi requirement chưa xong có owner, estimate và disposition cần PO quyết định.
 
 ## Definition of Done
 
-Mỗi luồng vận hành có acceptance test, audit phù hợp, kiểm thử quyền, evidence review của người dùng nghiệp vụ và release staging.
+Mỗi workflow có acceptance/test evidence, audit phù hợp và review nghiệp vụ; code/API/UI/data tích hợp staging; test quyền và file access pass; tài liệu/traceability được cập nhật. Finance production chỉ được bật sau sign-off riêng.

@@ -1,60 +1,56 @@
-# Giai đoạn 1 — Nền tảng, bảo mật và danh tính
+# Giai đoạn 1 — Nền tảng và lát cắt MVP đầu tiên
 
 **Thời hạn:** D5–D10  
-**Mục tiêu:** tạo nền tảng tích hợp được cho portal web, admin dashboard, Flutter và backend; triển khai xác thực/phân quyền server-side và tạo staging chạy được.
+**Mục tiêu:** dựng nền tảng cần thiết và triển khai MVP theo lịch phân công chuẩn tại [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md): xác thực, hồ sơ, đề xuất/duyệt/công bố dự án, khám phá và đăng ký ứng tuyển. Đây là lát cắt kiểm chứng, không thay thế baseline bàn giao đầy đủ D40.
 
-**Giới hạn nguồn lực:** với 2 sinh viên, triển khai theo lát cắt nhỏ; bootstrap Web/Flutter và dịch vụ theo thứ tự rủi ro/critical path, không xây nhiều phần rời song song. Sinh viên A ưu tiên API/data/auth; sinh viên B ưu tiên client; mỗi story phải được người còn lại review. Đo actual capacity và báo đỏ nếu estimate không khớp; baseline hiện vẫn giữ full scope/D40.
+**Giới hạn nguồn lực:** hai sinh viên làm vertical slice theo miền nghiệp vụ; A sở hữu Auth/RBAC và Project lifecycle, B sở hữu Talent profile/discovery/Application. Mỗi người làm UI + API + data + test cho phần mình. Shared contract phải được thống nhất trước khi tích hợp; không chia người này chỉ làm backend, người kia chỉ làm frontend.
 
 ## Đầu vào
 
-- Baseline, traceability matrix, state machine và permission matrix đã duyệt ở phase 0.
-- ADR, API conventions, data classification/privacy decisions.
-- Repo và quyền AWS/cloud, domain, CI/CD, PayOS sandbox, Cloudinary, Flutter toolchain.
-- Quyết định JWT/session, password policy, email/OTP nếu có, cách bootstrap System Admin.
+- Baseline/requirement IDs, actor list, câu hỏi mở và ownership D1–D4.
+- API conventions, data classification/privacy decisions và shared User/Auth/Project/Application contracts.
+- Repo, quyền Git/cloud/domain, CI/CD, PayOS sandbox, Cloudinary và Flutter toolchain theo phạm vi đã được xác nhận.
+- Quyết định JWT/session, password policy và cách bootstrap System Admin.
 
 ## Công việc và thời hạn
 
 | Ngày | Công việc/đầu ra trung gian |
 |---|---|
-| D5 | Tạo repo, branch/PR rules, lint/format/test CI, Docker local, PostgreSQL migration, staging skeleton |
-| D6 | NestJS modules, health/readiness endpoints, config validation, structured logging, API error contract, OpenAPI |
-| D7 | User/account/role schema, JWT access/refresh policy, password hashing, login/logout/refresh, seed admin an toàn |
-| D8 | Authorization guards/policies, role + resource ownership checks, audit event foundation, negative authorization tests |
-| D9 | React app shell, route guards, API client/error handling; Flutter app shell và API client; Cloudinary/PayOS connectivity spike |
-| D10 | Vertical slice auth trên web/mobile; integration test; deploy staging; backup baseline; sprint review và cập nhật forecast |
+| D5 | A dựng NestJS/API và React root skeleton, auth/user/role vertical slice; B khởi tạo Talent profile API/schema/UI theo contract, không sửa shared auth/root config. |
+| D6 | Hoàn thiện hồ sơ doanh nghiệp (A) và hồ sơ Talent gồm skills/certifications/portfolio (B); kiểm tra ownership và data isolation. |
+| D7 | A làm proposal draft/submit; B làm discovery/list/detail/filter cho Talent theo Project contract; A là owner Project lifecycle/schema. |
+| D8 | A làm Lab review queue, approve/reject/request-info và audit; B làm application/withdraw theo rule, kiểm thử chống trùng và project đóng. |
+| D9 | A làm publish/unpublish/close và enterprise status; B làm trạng thái application và candidate view; kiểm tra visibility/quyền. |
+| D10 | Tích hợp, sửa lỗi, bổ sung E2E/seed/run docs và demo staging theo luồng doanh nghiệp → Lab → công bố → sinh viên đăng ký; cập nhật capacity forecast. |
 
-Chi tiết ai làm gì từng ngày nằm trong [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md). Hai sinh viên làm hai vertical slice độc lập (auth/admin và talent profile), mỗi slice có UI + API + data + test; API contract/mocks cho shared User/Auth được chốt trước, không phân một người backend và người kia frontend.
+Chi tiết trách nhiệm, input/output và checkpoint mỗi ngày theo [file phân công từng ngày](./07-phan-cong-tung-ngay.md), là nguồn chuẩn khi chia việc.
 
 ## Đầu ra
 
-- Repo có quy ước làm việc, CI bắt buộc và branch protection theo năng lực nhóm.
-- Docker local và môi trường staging; PostgreSQL migrations/versioning.
-- NestJS API skeleton, health checks, validation, error responses, OpenAPI.
-- Tài khoản người dùng, đăng nhập JWT, refresh/revoke theo chính sách, RBAC/ownership.
-- Tài khoản System Admin được bootstrap an toàn; cấu hình vai trò/quyền và technical users theo phạm vi đã duyệt.
-- React shell cho portal/admin và Flutter shell cho platform đã xác nhận ở D4.
-- Ma trận quyền được thực thi ở API, có test cho allow/deny.
-- Config/secrets không nằm trong source; log không ghi password/token/secret/payment data.
-- Kết quả spike PayOS/Cloudinary và danh sách rủi ro xử lý tiếp.
-- SAD/DDD được cập nhật; runbook deploy staging tối thiểu.
+- Repo có quy ước làm việc, CI, Docker local, PostgreSQL migrations/versioning và API skeleton.
+- Login/authentication và authorization server-side theo contract; tài khoản System Admin bootstrap an toàn.
+- Hồ sơ doanh nghiệp và Talent theo trường đã được PO xác nhận.
+- Proposal draft/submit; Lab review queue có request more info/approve/reject; audit state transition.
+- Publish controls và danh sách/chi tiết dự án chỉ hiển thị đúng trạng thái.
+- Talent application/status; server-side validation chống trùng và không nhận đơn khi dự án đóng.
+- Web flows cho actor MVP; API docs, migrations/seed và E2E test evidence.
+- Staging demo và cập nhật traceability/risk/capacity.
 
-## Chia việc với 2 sinh viên
+## Chia việc
 
-- **Sinh viên A:** vertical slice auth/RBAC full-stack (API, data, login/admin UI, authorization tests); là owner shared auth contract.
-- **Sinh viên B:** vertical slice talent profile full-stack (profile API/schema riêng, profile UI, validation/tests); tiêu thụ auth qua contract, không chờ giao việc frontend.
-- **Cả hai:** tích hợp contract, CI/staging, negative tests và review chéo; bootstrap Flutter theo ngày phân công trong [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md).
-- Tránh cùng sửa shared auth/schema file; B mở PR/contract request nếu cần thay đổi; A owner merge shared auth.
-- **PO/khách hàng:** duyệt vai trò/login/bootstrap account và cung cấp tài khoản dịch vụ.
-- **Mentor bên ngoài (nếu có):** review security/deployment decisions.
+- **Sinh viên A:** shared Auth/RBAC implementation, enterprise profile, proposal/approval/publish/project lifecycle; full-stack slices gồm API, data, UI và tests.
+- **Sinh viên B:** Talent profile, project discovery và Application workflow/schema; full-stack slices gồm API, data, UI và tests.
+- **Cả hai:** chốt contract User/Auth/Project/Application, tích hợp, review chéo, CI/staging và E2E.
+- **PO/khách hàng:** xác nhận trường hồ sơ/dự án, reason codes, điều kiện đăng ký, trạng thái và review demo.
+- Không cùng sửa shared schema/migration; B sở hữu Application workflow/schema, A sở hữu Project lifecycle và cung cấp trạng thái Project contract.
 
 ## Gate kết thúc D10
 
-- Người dùng từng vai trò có thể login trên các client thuộc baseline.
-- Backend từ chối truy cập sai vai trò/khác resource; test chứng minh điều đó.
-- Staging deploy lặp lại được bằng pipeline; có health check và migration path.
-- Không commit secrets; log/config đã được kiểm tra.
-- API contract đủ để các phase tính năng phát triển song song.
+- Có thể demo end-to-end trên staging: doanh nghiệp tạo/gửi proposal → Lab xử lý → dự án được công bố → Talent đăng ký và xem trạng thái.
+- Hành động trái quyền, đăng ký trùng và đăng ký dự án chưa mở bị backend từ chối.
+- Migration/seed và smoke test chạy lặp lại được; các lỗi và giới hạn được ghi nhận.
+- MVP được PO review; chưa coi đây là hoàn thành các yêu cầu mentor, vận hành, tài chính, mobile hay production thuộc baseline.
 
 ## Definition of Done
 
-CI pass; auth/RBAC test pass; staging smoke test pass; web/mobile shell build được; migration/recovery và tài liệu kiến trúc được cập nhật. Nếu D10 chưa đạt, xử lý nền tảng trước khi tăng số luồng tính năng.
+CI và các kiểm thử phù hợp pass; API/UI/data tích hợp; authorization được xác minh phía server; staging demo có thể tái tạo; traceability, tài liệu và forecast được cập nhật. Nếu nền tảng/auth chưa ổn định, ghi blocker và xử lý trước khi mở rộng.

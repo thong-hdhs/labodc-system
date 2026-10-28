@@ -1,60 +1,59 @@
-# Giai đoạn 4 — Tài chính, tích hợp ngoài và Flutter
+# Giai đoạn 3 — Tìm kiếm, Flutter, tài chính và tích hợp hệ thống
 
-**Thời hạn:** D25–D31  
-**Mục tiêu:** hoàn thiện các luồng tài chính và dịch vụ nằm trong baseline, tích hợp mobile/API, và không đưa giao dịch production vào hoạt động khi chưa có quyết định nghiệp vụ/bảo mật.
+**Thời hạn:** D21–D31
+**Mục tiêu:** hoàn thiện search/cache, ứng dụng Flutter, các luồng tài chính và tích hợp/delivery còn lại trong baseline; kiểm thử trên môi trường phù hợp và chuẩn bị release candidate. Ngày phân công trong [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md) là lịch chuẩn.
 
-**Cảnh báo nguồn lực:** payments + ledger + webhook + tạm ứng + Flutter + search/storage/cloud là rủi ro lớn cho hai sinh viên không có chuyên gia chuyên trách. Trước khi bắt đầu, cần có estimate và reviewer có kinh nghiệm tài chính/bảo mật. Nếu thiếu policy/tài khoản/reviewer hoặc capacity, đánh dấu blocker và xin quyết định scope/nguồn lực; không tự triển khai tiền thật bằng code sinh tự động chưa được review.
-
-Phân công mỗi ngày giữ theo domain ownership A (Finance/Enterprise) và B (Talent/Mentor/Files/Mobile); mỗi người làm UI + API + data + tests cho slices của mình như [bảng D21–D31](./07-phan-cong-tung-ngay.md).
+**Cảnh báo nguồn lực:** payment/ledger/webhook, mobile, storage/search/cloud và triển khai là các hạng mục rủi ro cao cho hai sinh viên. Cần reviewer chuyên môn cho tài chính/bảo mật/production. Thiếu policy, tài khoản hoặc năng lực là blocker cần escalte; không mặc định AI thay thế reviewer hay phê duyệt.
 
 ## Đầu vào
 
-- Rulebook tài chính ký duyệt: payment states, split 70/20/10, rounding, delayed payment, advance, refunds, cancellation, reconciliation.
-- Tài khoản PayOS sandbox/production và webhook configuration.
-- Cloudinary credentials, upload policy, AWS environments, Redis/Elasticsearch use cases và acceptance criteria.
-- Flutter actor/platform scope và app signing/distribution accounts.
-- Tất cả workflow giai đoạn 2–3, test data, security/privacy decisions.
+- Các workflow D5–D20, API/schema contracts và traceability matrix cập nhật.
+- Rulebook tài chính; PayOS sandbox và webhook configuration.
+- Cloudinary credentials/upload policy; use case Redis/Elasticsearch đã được xác nhận.
+- Flutter actor/platform scope. Android là mục tiêu lập kế hoạch hiện tại của B, chờ PO xác nhận nghiệm thu chính thức.
+- AWS/Docker environment và quyền triển khai; test data, privacy/security decisions.
 
 ## Công việc theo ngày
 
 | Ngày | Công việc |
 |---|---|
-| D25 | Chốt payment domain/data model/ledger, idempotency keys, transaction states, threat review; test PayOS sandbox connectivity |
-| D26 | Tạo payment intent/order và trạng thái pending/success/failure/cancel; không tin redirect phía client làm bằng chứng thanh toán |
-| D27 | Webhook verification, replay/duplicate protection, reconciliation/admin review; test lỗi mạng/timeout |
-| D28 | Quy tắc phân bổ 70/20/10, làm tròn, approval, fund allocation và delayed payment/advance ledger theo policy |
-| D29 | Cloudinary upload/download; access controls, file constraints; Flutter flows login/project/application/task/report theo baseline |
-| D30 | Redis/Elasticsearch integration nếu được xác nhận; search/index consistency; AWS/Docker deploy configuration; Flutter build/signing integration |
-| D31 | Tích hợp end-to-end tài chính/files/mobile; test sandbox; customer review; kiểm tra traceability mọi requirement còn lại |
+| D21 | A: Elasticsearch/search cho project listing. B: Flutter base, login/profile. |
+| D22 | A: Redis/cache/session use case nếu thuộc baseline. B: Flutter project discovery/detail. |
+| D23 | A: payment status/history/reconciliation. B: Flutter application/status. |
+| D24 | A: finance admin controls/approvals. B: Flutter assigned project/task/report; mentor review và sprint demo. |
+| D25 | A: payment retry/failure/cancel/refund states. B: secure document/portfolio management trên web/mobile. |
+| D26 | A: fund allocation/advance approval/payment-delay flow. B: Leader redistribution proposal và team performance report; Mentor confirmation theo policy. |
+| D27 | A: Lab administration/monthly summaries. B: Mentor evaluation/acceptance và candidate feedback. |
+| D28 | A: production-like deployment, config/health/backup rehearsal. B: Flutter build/signing/device compatibility và client fixes. |
+| D29 | Cả hai: đóng các requirement gaps còn lại theo ownership, gắn test evidence và blocker. |
+| D30 | A/B: regression theo miền; cùng chạy cross-domain E2E và freeze thay đổi kiến trúc mới. |
+| D31 | A/B: security/integration tests theo domain, cross-review và phát hành integrated release candidate lên staging. |
 
 ## Đầu ra
 
-- Payment/transaction state machine và ledger được thiết kế, migration, API/UI theo policy.
-- Webhook xác thực theo cơ chế nhà cung cấp; xử lý idempotent; transaction reconciliation có audit.
-- Rule phân bổ quỹ và tạm ứng được kiểm thử đơn vị/biên làm tròn; thao tác phê duyệt có quyền rõ.
-- Lab transparency report/monthly summary và enterprise payment/report status theo baseline; các khoản advance được ghi nhận, phê duyệt và đối soát, không chỉ cập nhật số dư trực tiếp.
-- Cloudinary flow với upload/download quyền hạn, giới hạn file và không để lộ URL/quyền quá mức.
-- Flutter build cho platform đã xác nhận, tích hợp API/JWT và luồng user bắt buộc.
-- Redis/Elasticsearch có use case, fallback/consistency và monitoring nếu baseline yêu cầu.
-- PayOS sandbox test report; production-readiness checklist; không ghi nhận thanh toán thật trong production trước khi được PO/đơn vị tài chính phê duyệt.
-- Cập nhật SAD/DDD/API docs, threat model và integration runbook.
+- Project search/indexing và Redis use case có consistency/invalidation/fallback tests nếu các thành phần này thuộc baseline.
+- Flutter app build được cho nền tảng được PO xác nhận, tích hợp API/auth và các luồng actor bắt buộc.
+- Payment states, webhook/idempotency/reconciliation, 70/20/10, delayed payment/advance theo rulebook đã duyệt.
+- Leader/team fund workflow liên kết với finance API/ledger của A; có kiểm thử quyền và số liệu.
+- Cloudinary flow với kiểm soát truy cập/giới hạn tệp.
+- AWS/Docker config, health/backup/deployment rehearsal và release candidate staging.
+- Mọi requirement trong baseline có test evidence hoặc blocker/waiver do người có thẩm quyền quyết định.
+- Cập nhật SAD/DDD/API docs, threat/deployment/integration runbooks.
 
-## Chia việc với 2 sinh viên
+## Chia việc
 
-- **Sinh viên A:** sở hữu payment/fund vertical slices end-to-end: ledger/webhook/API/data + enterprise/Lab payment UI + boundary tests; không chỉ làm backend.
-- **Sinh viên B:** sở hữu Cloudinary/template/mobile vertical slices: file/task API + web/mobile screens + permission/device tests; không chỉ làm frontend.
-- **Cả hai:** review chéo và test tích hợp theo [07-phan-cong-tung-ngay.md](./07-phan-cong-tung-ngay.md); không chỉnh đồng thời cùng payment/file module.
-- PO/Finance/reviewer phê duyệt rule, sandbox/production; transaction production không bật nếu chưa đủ sign-off.
-- **PO/Finance/mentor chuyên môn:** ký policy, cấp tài khoản, xác nhận sandbox/production và review thiết kế tài chính.
-- Nếu không có chuyên gia/reviewer tài chính và bảo mật, chỉ tích hợp/test sandbox hoặc không bật chức năng tiền thật theo quyết định bằng văn bản.
+- **A:** payment/fund vertical slices, project search/index/cache, Lab/enterprise finance/admin, server/DB deploy.
+- **B:** Flutter client, Talent/Mentor/Team/Task/Report/Template workflows, file usage flows và mobile/device tests.
+- **Cả hai:** review chéo, integration/E2E, release checklist và ghi nhận actual hours/forecast.
+- Thanh toán production chỉ được bật khi policy, tài khoản, đối soát, vận hành sự cố và security sign-off đã hoàn tất; nếu chưa, giữ sandbox/disabled.
 
 ## Gate kết thúc D31
 
-- Mọi requirement tài chính/integration/mobile có test evidence hoặc blocker được người có thẩm quyền quyết định bằng văn bản.
-- Thanh toán thật chỉ được bật khi có phê duyệt nghiệp vụ, tài khoản production, đối soát, vận hành sự cố và security sign-off.
-- Tính toán quỹ có test chính xác; webhook duplicate/replay không ghi nhận hai lần.
-- Flutter được build/install/test trên platform mục tiêu; store review (nếu cần) được tính vào critical path.
+- Các requirement tài chính/integration/mobile có evidence hoặc blocker được PO quyết định chính thức.
+- Tính toán quỹ đúng theo policy; webhook trùng/replay không ghi nhận hai lần.
+- Flutter build được cài/chạy trên nền tảng mục tiêu đã chốt.
+- Integrated RC trên staging có test/release evidence; không đưa phần thiếu baseline sang giai đoạn kiểm thử như thể đã feature-complete.
 
 ## Definition of Done
 
-Không có secret trong repo/log; tích hợp test ở sandbox; ledger/audit khớp; mobile/API test pass; acceptance của PO/Finance ghi nhận. Nếu production payment chưa được phép, môi trường phải ở chế độ sandbox/disabled, không thể bị hiểu nhầm là giao dịch thật.
+Không có secret trong source/log; sandbox/payment modes rõ ràng; API/client tests pass; ledger/audit khớp; file/mobile/security checks có evidence; tài liệu và traceability cập nhật. Giai đoạn sau tập trung hardening, UAT và rollout, không phải lần đầu phát hiện các chức năng baseline còn thiếu.
