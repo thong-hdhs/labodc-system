@@ -62,6 +62,7 @@ $$\text{Capacity}_{\text{net}} = (\text{Số ngày làm thực tế} \times \tex
 | **ADR-03** | Thiết kế Sổ cái Tài chính (Financial Ledger) | **Append-Only Double-Entry Ledger trên PostgreSQL (`BIGINT` VNĐ) + Pessimistic Locking / Unique Idempotency Key** | Bảng `ledger_entries` không cho phép `UPDATE` hoặc `DELETE`. Mọi điều chỉnh/hoàn tiền/thu hồi tạm ứng phải tạo bút toán đối ứng mới. Đảm bảo an toàn tuyệt đối khi PayOS bắn trùng webhook. |
 | **ADR-04** | Chiến lược Tìm kiếm & Bộ nhớ đệm (ES + Redis) | **PostgreSQL là Source of Truth; đồng bộ sự kiện sang Elasticsearch khi dự án đổi trạng thái; Cache Redis TTL $60\text{s}$ cho Public Listing** | Đảm bảo NFR tải danh sách dự án $< 5\text{s}$ (thực tế đạt $< 300\text{ ms}$) và khi Elasticsearch/Redis gặp sự cố tạm thời, API có cơ chế fallback an toàn về PostgreSQL query. |
 | **ADR-05** | Triển khai AWS, Sao lưu & Rollback | **Dockerized Services trên AWS (EC2/ECS) + Nginx Reverse Proxy (HTTPS Let's Encrypt/ACM) + Automated Daily PostgreSQL Dump lên S3** | Đơn giản hóa vận hành cho nhóm 2 sinh viên, dễ dàng diễn tập Backup/Restore và Rollback về image tag trước đó trong vòng $< 5\text{ phút}$ ở ngày D28 và D36. |
+| **ADR-06** | Workspace và ORM | **pnpm workspaces + Prisma** trong monorepo; migration thuộc owner domain, B không sửa shared User/Auth schema của A. | Đã được người dùng chọn làm convention triển khai; xác minh version/CI cụ thể trong D5 trước khi khóa cấu hình. |
 
 ---
 
@@ -90,4 +91,81 @@ $$\text{Capacity}_{\text{net}} = (\text{Số ngày làm thực tế} \times \tex
 - [x] **Product Owner (PO) đã xác nhận toàn bộ 10 nhóm câu hỏi nghiệp vụ/tài chính/hạ tầng (`Q-A01` đến `Q-A10`) và ký duyệt Rulebook $70/20/10$, làm tròn, tạm ứng, hủy dự án.**
 - [x] **Đã kiểm tra thực tế quyền truy cập Git, AWS, Domain, PayOS Sandbox, Cloudinary và bộ mẫu Excel chuẩn của Lab.**
 - [x] **Đã lập Capacity Plan & Effort Forecast ($215\text{ giờ}$ cho Sinh viên A), ghi nhận rõ trạng thái rủi ro ĐỎ và kế hoạch điều phối AI + lịch review với Mentor.**
-- [x] **Sẵn sàng bước sang Giai đoạn 1 — Ngày D5 (Khởi tạo Monorepo NestJS + React, Migration DB đầu tiên và Vertical Slice Auth/RBAC).**
+- [ ] **Gate forecast tổng thể:** capacity B vẫn để trống và effort shared chưa được hòa giải; không đánh dấu Gate D4 xanh.
+- [x] **Quyết định tiếp tục:** theo chỉ dẫn của người dùng, được phép bắt đầu D5 dù forecast/capacity chưa xác nhận; giữ trạng thái rủi ro và không diễn giải việc bắt đầu D5 là Gate D4 đã pass.
+
+---
+
+## 6. Bảng Ước lượng Effort Chi tiết của Sinh viên B
+
+Ước lượng sơ bộ cho toàn bộ miền B, gồm UI + API/domain + persistence/migration + validation/authorization + test phù hợp + review/tích hợp/rework. AI được dùng hỗ trợ tạo bản nháp/scaffold, nhưng **không trừ trước giờ tiết kiệm AI chưa được đo**. Estimate có độ bất định cao (khoảng ±30%) vì nhóm chưa có actual velocity, Android target chưa được PO xác nhận chính thức và một số rule nghiệp vụ còn cần đặc tả.
+
+| Req ID / Hạng mục | Dev + AI (giờ) | Test/Review/Tích hợp (giờ) | Tổng (giờ) | Mốc theo file 07 |
+|---|---:|---:|---:|---|
+| Phase 0 B — Workshop luồng Talent/Mentor, state, acceptance, contracts, estimate | 9 | 5 | **14** | D2–D4 |
+| `REQ-TAL-01` — Hồ sơ Talent, skills/certifications/portfolio | 10 | 6 | **16** | D5–D6 |
+| `REQ-TAL-02` — Project discovery/list/detail/filter trên Web | 8 | 5 | **13** | D7 |
+| `REQ-TAL-03` — Application workflow/API/UI, chống trùng và quyền rút đơn | 12 | 8 | **20** | D8–D10; tích hợp D23 |
+| `REQ-MEN-01..02` — Mentor invitation, review/interview theo project | 10 | 6 | **16** | D11–D12; evaluation continuation D27 |
+| `REQ-TEAM-01..03` — Team, membership, Leader appointment/election/representation | 11 | 7 | **18** | D13 |
+| `REQ-OPS-01..02`, `REQ-TAL-04` — Task/milestone, template usage/version/file references | 12 | 8 | **20** | D14–D15; continuation D24 |
+| `REQ-REP-01` — Monthly/phase report, team report, submission/review lifecycle | 11 | 7 | **18** | D16, D18 |
+| `REQ-REP-02` — Evaluation, feedback visibility and contribution records | 9 | 6 | **15** | D17; continuation D27 |
+| `REQ-REP-03` — Leader redistribution proposal + Mentor confirmation; finance contract | 8 | 6 | **14** | D26 |
+| `REQ-FILE-B-01` — Cloudinary usage flow for portfolio/task/report; A owns service integration | 5 | 4 | **9** | D19; hardening D25 |
+| `REQ-MOB-01` — Flutter/Android foundation, auth adapter and Talent profile | 10 | 6 | **16** | D21 |
+| `REQ-MOB-01` — Android discovery/detail/application/status flows | 12 | 7 | **19** | D22–D23 |
+| `REQ-MOB-01` — Android assigned project/task/report/document flows | 13 | 8 | **21** | D24–D25 |
+| `REQ-MOB-01` — Android package/signing/device compatibility and integration fixes | 7 | 5 | **12** | D28–D31 |
+| B security/privacy/UX regression — ownership, file access, client error/loading states | 5 | 7 | **12** | D30–D35 |
+| `REQ-DOC-B` — B-domain SDLC/UML, test evidence, Android user/install/handover docs | 8 | 8 | **16** | D1–D40, especially D32–D40 |
+| **TỔNG CỘNG B — estimate sơ bộ** | **160** | **109** | **269 giờ** | **D1–D40** |
+
+### Diễn giải forecast B
+
+- **Capacity thực của B:** người dùng yêu cầu để trống và cho biết thời gian không phải điều kiện chặn bắt đầu D5. Ngày làm thực tế, giờ tập trung/ngày và giờ họp/điều phối vẫn chưa có số; do đó forecast B và forecast tổng thể tiếp tục **chưa xác nhận**, không kết luận B fit D40.
+- **Kịch bản tham khảo, không phải số thực của B:** nếu B có cùng giả định với kịch bản cơ sở A (38 ngày làm × 5 giờ tập trung/ngày − 18 giờ họp/điều phối), capacity ròng là 172 giờ; so với 269 giờ effort sơ bộ thì thiếu khoảng **97 giờ**. Đây chỉ là phép thử giả định, không thay thế capacity thực.
+- Estimate 269 giờ là point estimate ở giai đoạn chưa có velocity; cần re-estimate sau sprint đầu, ghi actuals, loại trùng phần shared với estimate A và tính lại P50/P80. Không lấy khoản tiết kiệm AI 30–35 giờ của estimate A để giảm estimate B khi chưa có số liệu.
+- **Trạng thái B:** estimate sơ bộ đã có; capacity/forecast vẫn **chưa baseline / chưa xác nhận**. Theo quyết định của người dùng, thiếu số capacity không chặn việc khởi động D5 nhưng phải giữ thành rủi ro theo dõi.
+
+---
+
+## 7. Traceability Matrix — Miền Sinh viên B
+
+| Req ID | User Story / lát cắt | Ngày | Module / Owner | Test ID đề xuất | Tiêu chí nghiệm thu chính |
+|---|---|---|---|---|---|
+| `REQ-TAL-01` | Talent cập nhật hồ sơ, kỹ năng, chứng chỉ, portfolio | D5–D6 | Talent API/Web, B; Cloudinary service A | `TC-B-TAL-01` CRUD; `TC-B-TAL-02` ownership/file access | Talent chỉ sửa hồ sơ mình; chỉ actor có quan hệ project xem đúng trường được phép. |
+| `REQ-TAL-02` | Talent tìm/xem project công khai | D7; Flutter D22 | Talent discovery, B; Project Contract A | `TC-B-DISC-01` visibility/filter | Chỉ project public/đang nhận đơn được trả về; filter theo contract. |
+| `REQ-TAL-03` | Talent gửi/xem/rút Application | D8–D10; Flutter D23 | Application module/schema/API/Web/Mobile, B | `TC-B-APP-01` state; `TC-B-APP-02` duplicate/race; `TC-B-APP-03` withdrawal | Chỉ một active application; project/time window và quyền được kiểm tra tại backend. |
+| `REQ-MEN-01..02` | Mentor nhận lời mời, review/interview và quyết định đơn | D11–D12; D27 | Mentor module, B | `TC-B-MEN-01` invitation; `TC-B-MEN-02` assigned-project authorization | Chỉ Mentor được phân công quyết định; interview chỉ khi project bật; audit đầy đủ. |
+| `REQ-TEAM-01..03` | Lập nhóm, chọn Leader và giao tiếp đại diện | D13 | Team module, B | `TC-B-TEAM-01` membership/size; `TC-B-TEAM-02` leader history | Chỉ application accepted được thêm; team size/leader rule được enforce; lưu lịch sử. |
+| `REQ-OPS-01..02`, `REQ-TAL-04` | Dùng mẫu Lab, tạo task/milestone và nộp kết quả | D14–D15; D24 | Task/Template usage, B; template catalog A | `TC-B-TASK-01` status; `TC-B-FILE-01` template/file permission | Gắn đúng template version; dữ liệu/file chỉ xem được trong project/team scope. |
+| `REQ-REP-01` | Mentor/Leader gửi report tháng/giai đoạn | D16, D18 | Reports module, B | `TC-B-REP-01` lifecycle/revision | State và reviewer role được enforce; trả chỉnh sửa có nhận xét/audit. |
+| `REQ-REP-02` | Mentor chốt feedback/evaluation | D17; D27 | Evaluation module, B | `TC-B-EVAL-01` finalize; `TC-B-EVAL-02` privacy | Talent xem bản chốt của mình; Enterprise không thấy ghi chú nội bộ cá nhân. |
+| `REQ-REP-03` | Leader tạo đề xuất phân phối Team Pool | D26 | Redistribution workflow B + Finance API A | `TC-B-REDIST-01` team pool; `TC-B-REDIST-02` no direct ledger write | Chỉ member Leader hợp lệ tạo; Mentor assignment xác nhận; B không tự ghi Ledger. |
+| `REQ-MOB-01` | Dùng các luồng bắt buộc trên Flutter Android | D21–D31 | `apps/mobile/lib/features`, B | `TC-B-MOB-01` auth; `TC-B-MOB-02` core flows; `TC-B-MOB-03` device/build | Build cài/chạy được trên Android target đã được PO xác nhận; API behavior khớp Web. |
+| `REQ-NFR-B-01..02`, `REQ-DOC-B` | UX, permission regression, tài liệu và UAT | Xuyên suốt; D30–D40 | B-domain + mobile | `TC-B-SEC-01` access matrix; `TC-B-UX-01` error states | Evidence test, docs và known issues gắn requirement IDs, không tuyên bố test độc lập nếu không có reviewer. |
+
+---
+
+## 8. Kết quả Cùng chốt Cuối D4 (Checkpoint A + B)
+
+### Baseline/architecture/ownership
+
+- [x] Giữ baseline full scope + D40 + 2 sinh viên; A ghi estimate 215 giờ, B ghi estimate sơ bộ 269 giờ. Hai số cần review trùng lặp shared items trước khi dùng làm tổng effort.
+- [x] A sở hữu Auth/RBAC implementation, Enterprise/Project lifecycle, Lab/System Admin, Finance/PayOS/Ledger và hạ tầng dịch vụ. B sở hữu Talent/Mentor/Team/Task/Report/Application workflow/schema và Flutter client.
+- [x] A cung cấp Auth context, Project status/visibility và Team Pool/Finance contracts; B tiêu thụ contracts, sở hữu Application workflow/schema, team workflow và redistribution proposal, không ghi trực tiếp Ledger.
+- [x] Monorepo/API conventions/shared types là phương án ADR; migration A/B tách prefix, các thay đổi contract shared phải review chéo.
+- [x] Android là mục tiêu lập kế hoạch của B; nền tảng phát hành, app actors/flows chính thức và cách phân phối vẫn phải có xác nhận PO trong hồ sơ nghiệm thu.
+- [x] AI hỗ trợ scaffold/test draft nhưng estimate không trừ tiết kiệm chưa đo; mọi thay đổi cần người phụ trách đọc, test, review và chịu trách nhiệm.
+
+### Capacity, risk và cổng D4
+
+- [x] Forecast A được ghi là ĐỎ/rủi ro cao theo số liệu và giả định A trình bày.
+- [x] Capacity B chưa có actual workdays, focused hours/day hoặc meeting/coordination hours; theo quyết định của người dùng không chờ số này để bắt đầu D5, nhưng forecast tổng thể **chưa thể ký pass**.
+- [ ] Khi có số liệu, điền availability thực tế của B, xác nhận actual capacity của A và tính lại shared team forecast/critical path; reconcile effort A/B để không double-count Auth, staging, NFR, UAT và integration. Không phải điều kiện chặn bắt đầu D5 theo quyết định hiện tại.
+- [ ] Cập nhật risk log với khoảng thiếu, owner, biện pháp, reviewer/mentor và ngày cần quyết định. Không dùng AI productivity như capacity chắc chắn.
+- [ ] Rà soát NFR charter: load test 200–300 VUs là bài chịu tải, không đủ để chứng minh 99% uptime chỉ trong cửa sổ 10 phút. PO cần chốt kỳ đo uptime, bảo trì/ngoại lệ, môi trường và cách tính; đo availability riêng với load test.
+- [ ] Bổ sung owner/ngày đến hạn cho các câu hỏi nghiệp vụ còn mở khi lập backlog; không yêu cầu tên/ngày ký PO trong bộ tài liệu làm việc theo chỉ dẫn người dùng.
+
+**Kết luận:** D5 được phép khởi động theo quyết định của người dùng. **Gate D4 forecast vẫn mở/chưa pass** vì thiếu capacity thực tế và chưa hòa giải effort shared; các mục NFR uptime, Android và những quyết định ngoài phạm vi profile tiếp tục là rủi ro/follow-up, không chặn vertical slice Talent D5. Không chuyển forecast chưa biết thành xanh bằng giả định.

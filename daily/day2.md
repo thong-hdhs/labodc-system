@@ -170,5 +170,187 @@ sequenceDiagram
 
 ## 4. Kết quả Cùng chốt Cuối Ngày D2 (Checkpoint A + B)
 
-- [x] PO đã xác nhận toàn bộ sơ đồ luồng nghiệp vụ của Sinh viên A và Sinh viên B; không còn luồng nào thiếu người phê duyệt.
+- [x] PO xác nhận các luồng nghiệp vụ A và các quyết định B đã ghi trong Decision Log; các chi tiết còn mở (như reviewer cuối cho từng loại report, ngoại lệ tuyển chọn và tiêu chí bầu Leader) được giữ trong danh sách follow-up, không coi là đã chốt.
 - [x] Đã kiểm tra thực tế quyền truy cập vào các tài khoản dịch vụ (Git, AWS, PayOS Sandbox, Cloudinary) — không có blocker cấp dự án ở cổng D2.
+
+---
+
+## 5. Sơ đồ Luồng Nghiệp vụ của Sinh viên B
+
+> **Người phụ trách:** Sinh viên B (Owner miền Talent, Mentor, Team/Leader, Task/Template usage, Report/Evaluation và Flutter client).
+> **Đầu vào:** Requirement IDs và câu hỏi UX ở [day1.md](./day1.md); DEC-01..DEC-07, Project contract và bộ template v1.0 trong phần A của tài liệu này.
+> **Đầu ra:** Luồng ứng tuyển, phân công mentor/nhóm, task/template, báo cáo/đánh giá và phân phối phần quỹ nhóm; các quyết định đã chọn cùng câu hỏi cần bổ sung vào biên bản PO.
+
+### 5.1. Luồng B1: Talent tìm dự án và ứng tuyển (`REQ-TAL-01..03`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TAL as Talent
+    participant WEB as React Portal / Android App
+    participant API as Talent & Application API (B)
+    participant PRJ as ProjectContractService (A)
+    participant DB as PostgreSQL
+    actor MEN as Mentor được phân công
+    actor LAB as Lab Administrator
+
+    TAL->>WEB: Xem hồ sơ, tìm dự án đã công bố
+    WEB->>API: GET /api/v1/projects/public, GET /api/v1/talent/me
+    API->>PRJ: Đọc trạng thái/khả năng nhận đơn theo Project Contract
+    PRJ-->>API: PUBLISHED + acceptingApplications
+    API-->>WEB: Danh sách công khai và hồ sơ thuộc Talent hiện tại
+    TAL->>WEB: Gửi đơn đăng ký
+    WEB->>API: POST /api/v1/projects/:projectId/applications
+    API->>PRJ: getProjectStatus(projectId)
+    PRJ-->>API: acceptingApplications, maxTeamSize, requiredSkills
+    API->>DB: Kiểm tra eligibility/đơn trùng và tạo SUBMITTED
+    API-->>TAL: Xác nhận đơn và trạng thái
+    MEN->>API: Mở đơn thuộc project được phân công
+    API->>DB: Chuyển SUBMITTED -> UNDER_REVIEW
+    opt Dự án bật phỏng vấn
+        MEN->>API: Ghi nhận kết quả phỏng vấn
+        API->>DB: Chuyển UNDER_REVIEW -> INTERVIEW
+    end
+    alt Talent được chọn
+        MEN->>API: Quyết định ACCEPTED
+        API->>DB: Lưu trạng thái, actor, thời điểm và audit
+    else Talent không được chọn
+        MEN->>API: Quyết định REJECTED (lý do theo policy)
+        API->>DB: Lưu trạng thái, actor, thời điểm và audit
+    else Talent rút đơn trước khi được chấp nhận
+        TAL->>API: POST /applications/:id/withdraw
+        API->>DB: Chuyển trạng thái -> WITHDRAWN
+    end
+    LAB->>API: Xem/giám sát kết quả theo quyền Lab
+```
+
+**Quy tắc đã chọn:** Application gồm `SUBMITTED -> UNDER_REVIEW -> (INTERVIEW nếu bật cho dự án) -> ACCEPTED | REJECTED`; Talent được `WITHDRAWN` trước khi được chấp nhận. Mentor được phân công quyết định cuối trong phạm vi project; Lab Admin giám sát và xử lý ngoại lệ. Backend B kiểm tra trạng thái/khung thời gian dự án bằng contract của A, quyền sở hữu và tính duy nhất của đơn.
+
+### 5.2. Luồng B2: Lời mời Mentor, lập nhóm và chọn Talent Leader (`REQ-MEN-01`, `REQ-TEAM-01..03`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor LAB as Lab Administrator
+    participant API as Mentor/Team API (B)
+    participant DB as PostgreSQL
+    actor MEN as Mentor
+    actor TAL as Talent được ACCEPTED
+    actor LEAD as Talent Leader
+
+    LAB->>API: Tạo/gửi lời mời Mentor cho Project
+    API->>DB: Lưu invitation = INVITED + project scope
+    MEN->>API: Chấp nhận hoặc từ chối lời mời
+    API->>DB: Lưu ACCEPTED/DECLINED và audit
+    LAB->>API: Tạo Team từ các application ACCEPTED
+    API->>DB: Tạo Team và membership theo giới hạn dự án
+    API-->>TAL: Thông báo thành viên/nhóm được phân công
+    alt Mentor chỉ định Leader
+        MEN->>API: Đề cử một thành viên làm Talent Leader
+    else Nhóm bầu Leader
+        TAL->>API: Ghi nhận kết quả bầu theo policy của Project
+    end
+    API->>DB: Kiểm tra ứng viên là member; ghi leader assignment/history
+    MEN->>API: Xác nhận Leader theo policy
+    API->>DB: Ghi audit và phạm vi quyền Leader
+    LEAD->>API: Gửi trao đổi/báo cáo đại diện nhóm
+    API->>DB: Gắn hoạt động với Project/Team và actor
+```
+
+**Quy tắc đã chọn:** Leader có thể được Mentor chỉ định hoặc do nhóm bầu tùy policy của project; Mentor xác nhận và hệ thống lưu audit. Leader đại diện nhóm trong giao tiếp theo phạm vi được Lab/Mentor cho phép. Chưa giả định quy mô team, cách bầu, quorum hoặc quyền ra quyết định thay mặt nhóm.
+
+### 5.3. Luồng B3: Task/Template và báo cáo (`REQ-OPS-01..02`, `REQ-REP-01`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor SYS as System Administrator
+    participant CAT as Template Catalog (A)
+    actor MEN as Mentor
+    participant API as Operations/Report API (B)
+    participant DB as PostgreSQL
+    actor LEAD as Talent Leader
+    actor LAB as Lab Administrator
+
+    SYS->>CAT: Quản lý phiên bản template Excel/Docs chuẩn
+    MEN->>API: Chọn template đã phát hành cho project
+    API->>CAT: Kiểm tra template/version được phép dùng
+    CAT-->>API: templateId + version + metadata
+    MEN->>API: Tạo task/milestone, assignee, due date và tham chiếu template
+    API->>DB: Lưu task, trạng thái và template version
+    MEN->>API: Cập nhật tiến độ/báo cáo tháng hoặc giai đoạn
+    API->>DB: Lưu report DRAFT -> SUBMITTED
+    LEAD->>API: Gửi báo cáo nhóm (nếu được phân quyền)
+    API->>DB: Lưu report cùng Team/Project và actor
+    API->>DB: Chuyển SUBMITTED -> IN_REVIEW
+    alt Cần chỉnh sửa
+        MEN->>API: Trả report với nhận xét
+        API->>DB: CHANGES_REQUESTED
+        MEN->>API: Nộp lại bản đã chỉnh sửa
+        API->>DB: SUBMITTED -> IN_REVIEW
+    else Được duyệt
+        LAB->>API: Ghi nhận APPROVED theo quyền review
+        API->>DB: Lưu quyết định, reviewer, timestamp và lịch sử
+    end
+```
+
+**Quy tắc đã chọn:** template Excel/Docs do Lab cung cấp là hồ sơ chuẩn; ứng dụng ghi nhận task/milestone, assignee, trạng thái và file/phiên bản mẫu. Không tích hợp Jira/Trello. Mentor nộp báo cáo tháng/giai đoạn; Leader có thể nộp báo cáo nhóm theo quyền. Trạng thái báo cáo: `DRAFT -> SUBMITTED -> IN_REVIEW -> CHANGES_REQUESTED | APPROVED`.
+
+### 5.4. Luồng B4: Đánh giá, đóng góp và phân phối phần quỹ nhóm (`REQ-REP-02..03`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor MEN as Mentor
+    participant API as Evaluation/Redistribution API (B)
+    participant FIN as Finance/Ledger API (A)
+    participant DB as PostgreSQL
+    actor TAL as Talent
+    actor LEAD as Talent Leader
+    actor LAB as Lab Administrator
+    actor ENT as Enterprise
+
+    MEN->>API: Ghi đánh giá/feedback và đóng góp cho member
+    API->>DB: Lưu assessment theo Project/Team; trạng thái DRAFT/FINAL
+    API-->>TAL: Chỉ hiển thị đánh giá cá nhân đã chốt của Talent đó
+    API-->>LAB: Cho phép xem trong phạm vi quản trị/Project
+    API-->>ENT: Chỉ cung cấp kết quả nghiệm thu và đánh giá tổng hợp Project
+    LEAD->>API: Tạo đề xuất phân phối Team Pool cho thành viên
+    API->>FIN: Lấy team-pool và trạng thái khóa qua contract A
+    FIN-->>API: totalTeamPoolVnd + allocationStatus + lock status
+    API->>DB: Lưu redistribution proposal; không ghi trực tiếp ledger
+    MEN->>API: Xác nhận hoặc trả lại proposal theo policy
+    API->>DB: Lưu quyết định/audit
+    API->>FIN: Chuyển đề xuất đã xác nhận để xử lý theo finance policy
+    FIN->>DB: Chỉ finance core/actor được phân quyền mới ghi bút toán
+```
+
+**Quy tắc đã chọn:** Talent xem đánh giá đã chốt của mình; Mentor/Lab xem theo project assignment/quyền quản trị; Enterprise xem nghiệm thu và đánh giá tổng hợp của project mình, không xem ghi chú cá nhân nội bộ. Leader quản lý/đề xuất phân phối phần quỹ Team; Mentor xác nhận. B chỉ sở hữu workflow/UX đề xuất; A sở hữu Payment/Ledger và việc ghi bút toán.
+
+---
+
+## 6. Decision Log B — Chốt D2
+
+| Mã QĐ | Hạng mục | Quyết định | Người phê duyệt / trạng thái | Ảnh hưởng |
+|---|---|---|---|---|
+| **DEC-B01** | State Application | `SUBMITTED -> UNDER_REVIEW -> INTERVIEW` nếu project bật phỏng vấn -> `ACCEPTED/REJECTED`; Talent được rút đơn trước khi ACCEPTED. | PO xác nhận theo lựa chọn của người dùng; không yêu cầu ghi tên/ngày ký trong bộ tài liệu làm việc. | `REQ-TAL-02..03`, `REQ-MEN-02` |
+| **DEC-B02** | Người quyết định Application | Mentor được phân công quyết định cuối; Lab Admin giám sát và xử lý ngoại lệ. | PO xác nhận theo lựa chọn của người dùng; định nghĩa ngoại lệ/escalation còn mở. | `REQ-MEN-02`, permission matrix D3 |
+| **DEC-B03** | Chọn Talent Leader | Mentor chỉ định hoặc nhóm bầu theo policy dự án; Mentor xác nhận và audit. | PO xác nhận theo lựa chọn của người dùng; cách bầu/quorum còn mở. | `REQ-TEAM-02..03` |
+| **DEC-B04** | Task và template | Mẫu Excel/Docs chuẩn của Lab vẫn là hồ sơ chính; app ghi nhận task/milestone/assignee/status và file/version. Không dùng Jira/Trello. | PO xác nhận theo lựa chọn của người dùng; danh mục trường task cụ thể còn theo template v1.0. | `REQ-OPS-01..02` |
+| **DEC-B05** | Báo cáo | Mentor gửi báo cáo tháng/giai đoạn; Leader có thể gửi báo cáo nhóm; lifecycle `DRAFT -> SUBMITTED -> IN_REVIEW -> CHANGES_REQUESTED/APPROVED`. | PO xác nhận theo lựa chọn của người dùng; người review cuối theo loại report cần ghi trong approval matrix. | `REQ-REP-01` |
+| **DEC-B06** | Quyền xem profile/evaluation | Talent tự xem hồ sơ và đánh giá đã chốt của mình; Mentor theo project được giao; Lab Admin theo quyền quản trị; Enterprise chỉ xem ứng viên của project mình và kết quả nghiệm thu/đánh giá tổng hợp, không xem ghi chú nội bộ. | PO xác nhận theo lựa chọn của người dùng; baseline trường/quyền xem Talent được chốt ở Q-B01, các chi tiết còn lại tiếp tục là follow-up. | `REQ-TAL-01`, `REQ-REP-02`, `REQ-ENT-04` |
+| **DEC-B07** | Team fund redistribution | Leader quản lý/đề xuất phân phối Team Pool; Mentor xác nhận; B không tự ghi Ledger hoặc quyết định công thức tiền. | PO/Finance xác nhận quy trình ở mức này; rulebook tài chính A D2 điều khiển việc ghi Ledger. | `REQ-REP-03`, `REQ-FIN-03` |
+
+Các lựa chọn B trên được người dùng xác nhận là PO đã duyệt. Theo chỉ dẫn hiện tại, bộ tài liệu làm việc không cần bổ sung tên/ngày ký; nội dung này không được diễn giải thành chữ ký hoặc biên bản pháp lý. Nền tảng nghiệm thu Flutter Android vẫn là nội dung chờ PO xác nhận theo quyết định D1.
+
+## 7. Kết quả Cùng chốt cuối ngày D2 (A + B)
+
+- [x] Dùng Project lifecycle/status contract của A; B sở hữu Application workflow/schema theo DEC-02.
+- [x] A sở hữu Auth/RBAC implementation, Project, Finance/Ledger, System Admin/template catalog và Cloudinary infrastructure; B sở hữu Talent/Mentor/Team/Task/Report và luồng sử dụng template/file.
+- [x] Application decision cuối thuộc Mentor được phân công; Lab Admin giám sát/xử lý ngoại lệ. Cần xác định loại ngoại lệ và escalation criteria trong approval matrix D3.
+- [x] Team Leader có thể được Mentor chỉ định hoặc nhóm bầu theo policy project; Mentor xác nhận, audit.
+- [x] Excel/Docs của Lab là mẫu chuẩn; app theo dõi metadata/task/workflow, không tích hợp Jira/Trello.
+- [x] Quyền xem profile, evaluation và report được giới hạn theo self/project/team; Enterprise không xem ghi chú đánh giá nội bộ.
+- [x] Các quyết định A trong DEC-01..DEC-07 và trạng thái tài khoản dịch vụ được xác nhận là quyết định/thông tin thực tế; PO đã xác nhận theo người dùng. Không ghi secrets; bộ tài liệu làm việc không yêu cầu metadata tên/ngày PO.
+- [x] Ghi nhận các quyết định PO theo xác nhận của người dùng; không yêu cầu thêm metadata tên/ngày trong bộ tài liệu làm việc.
+- [ ] Chốt các câu hỏi còn mở: trường profile chia sẻ, eligibility, tiêu chí/quorum bầu Leader, reviewer report, trạng thái task, escalation khi khiếu nại và Android release/distribution.

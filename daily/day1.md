@@ -104,7 +104,7 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 
 | Mã CH | Chủ đề | Câu hỏi của Sinh viên B | Req ID liên quan | Phản hồi / quyết định |
 |---|---|---|---|---|
-| **Q-B01** | Hồ sơ Talent | Những trường hồ sơ nào bắt buộc? Kỹ năng/chứng chỉ có danh mục chuẩn không? Hồ sơ, portfolio và thông tin liên hệ được chia sẻ với doanh nghiệp, mentor hoặc người dùng nào? | `REQ-TAL-01` | *Chờ PO/Lab xác nhận* |
+| **Q-B01** | Hồ sơ Talent | Những trường hồ sơ nào bắt buộc? Kỹ năng/chứng chỉ có danh mục chuẩn không? Hồ sơ, portfolio và thông tin liên hệ được chia sẻ với doanh nghiệp, mentor hoặc người dùng nào? | `REQ-TAL-01` | **Đã chốt baseline tối thiểu theo lựa chọn của người dùng:** họ tên, mã sinh viên, email trường là bắt buộc; khoa/ngành, khóa/năm học, giới thiệu, kỹ năng, chứng chỉ và portfolio là tùy chọn. Talent tự xem/sửa; Lab Admin quản trị; Mentor được phân công xem hồ sơ ứng viên của project; Enterprise chỉ xem trường hồ sơ cho phép của ứng viên thuộc project mình, không xem thông tin liên hệ riêng. Danh mục kỹ năng/chứng chỉ và chính sách file chi tiết tiếp tục là follow-up. |
 | **Q-B02** | Điều kiện đăng ký | Điều kiện để sinh viên đăng ký dự án là gì? Có giới hạn số dự án/đơn đang hoạt động hoặc yêu cầu kỹ năng, chứng chỉ hay không? | `REQ-TAL-02`, `REQ-TAL-03` | *Chờ PO/Lab xác nhận* |
 | **Q-B03** | Rút đơn và trạng thái | Sinh viên được rút đơn ở những trạng thái nào và đến thời điểm nào? Danh sách trạng thái đăng ký, người thay đổi trạng thái và thông tin lý do cần hiển thị ra sao? | `REQ-TAL-03` | *Chờ PO/Lab xác nhận* |
 | **Q-B04** | Phỏng vấn/tuyển chọn | Phỏng vấn có bắt buộc cho mọi dự án hay tùy dự án? Ai tạo lịch/ghi kết quả; rubric và trạng thái ứng viên nào được dùng? | `REQ-MEN-02` | *Chờ PO/Mentor xác nhận* |
@@ -162,6 +162,6 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 - [x] Ghi phụ thuộc kỹ thuật và owner phối hợp; không nhận thay ownership shared của A.
 - [x] Ghi Android là lựa chọn lập kế hoạch hiện tại; chờ PO xác nhận chính thức.
 - [x] Gộp requirement IDs với A, xác định owner/ranh giới shared và ghi quyết định còn mở.
-- [ ] Xác định PO/liên hệ, đề xuất và xác nhận lịch workshop D2 với PO, Lab, mentor và đại diện Talent.
+- [x] Workshop D2 và các quyết định nghiệp vụ đã được ghi nhận tại [day2.md](./day2.md); theo xác nhận của người dùng, không cần bổ sung tên/ngày ký PO vào bộ tài liệu làm việc này.
 
 **Checkpoint cuối D1:** A và B đã thống nhất danh sách yêu cầu, owner và ranh giới shared; các câu hỏi chưa quyết định được giữ lại cho PO/decision log, không biến giả định thành baseline.
