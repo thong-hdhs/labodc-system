@@ -69,7 +69,7 @@ export class AuthService implements OnModuleInit {
       {
         id: '00000000-0000-4000-8000-000000000003',
         email: 'enterprise@company.vn',
-        fullName: 'Doanh nghiệp Đối tác UTH',
+        fullName: 'Doanh nghiệp Đối tác UTH (Công ty A)',
         role: UserRole.ENTERPRISE,
         status: UserStatus.ACTIVE,
       },
@@ -100,6 +100,13 @@ export class AuthService implements OnModuleInit {
         fullName: 'Tài khoản Bị Khóa',
         role: UserRole.TALENT,
         status: UserStatus.LOCKED,
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000008',
+        email: 'enterprise2@company.vn',
+        fullName: 'Doanh nghiệp Đối tác B',
+        role: UserRole.ENTERPRISE,
+        status: UserStatus.ACTIVE,
       },
     ];
 
