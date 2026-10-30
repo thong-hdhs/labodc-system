@@ -1,65 +1,73 @@
-# Ngày D5 — Khởi tạo Nền tảng Monorepo, Docker, CI/CD & Lát cắt dọc Xác thực/Phân quyền REQ-AUTH-01 (Sinh viên A)
+# Ngày D5 — Nền tảng, Đăng nhập và Hồ sơ Talent (Sinh viên A + B)
 
-> **Người phụ trách:** Sinh viên A (Owner miền Shared Auth/RBAC, Enterprise, Lab Admin, System Admin, Project Lifecycle, Finance/PayOS & Hạ tầng)  
-> **Giai đoạn:** Giai đoạn 1 — Nền tảng và lát cắt MVP đầu tiên (Ngày D5 / Sprint 1: D5–D10)  
-> **Đầu vào:** Hồ sơ Baseline Gate D4 (`day1.md`..`day4.md`), Quyết định kiến trúc `ADR-01` (Monorepo), `ADR-02` (JWT & Server-side RBAC), `ADR-05` (Docker Compose) và Shared User/Auth Contract.  
-> **Đầu ra:** Khung Monorepo (`apps/api`, `apps/web`, `packages/shared-types`), cấu hình Docker Compose & GitHub Actions CI (`REQ-INFRA-03`), Migration & Seed 6 vai trò, Vertical Slice `REQ-AUTH-01` (API + React Auth UI) và bằng chứng vượt qua bộ kiểm thử `TC-AUTH-01`, `TC-AUTH-02`.
+> **Phân công:** A sở hữu monorepo/root config, Auth/User/RBAC; B sở hữu Talent profile API/schema/UI.
+> **Nguồn chuẩn:** [Phân công từng ngày](../implementation-plan/07-phan-cong-tung-ngay.md), D5.
+> **Nguyên tắc ghi nhận:** Tài liệu này phân biệt phần có trong checkout với các đầu ra chưa có bằng chứng. Không xem nội dung kế hoạch hoặc mô tả trước đó là bằng chứng tự thân.
 
----
+## 1. Mục tiêu D5
 
-## 1. Bảng Tổng hợp Hạng mục Công việc đã Hoàn thành trong Ngày D5 (Của Sinh viên A)
+- A dựng API NestJS/Web React skeleton và vertical slice Auth/User/Role.
+- B tích hợp Talent profile API/schema/UI theo shared Auth contract; không sở hữu root config/Auth.
+- Hai bên kiểm thử role/ownership và thống nhất migration/module ownership.
 
-| Mã Req / ADR | Hạng mục công việc trong D5 | Module / Đường dẫn thuộc quyền sở hữu của A | Trạng thái hoàn thành | Mã Kiểm thử / Bằng chứng |
-| :--- | :--- | :--- | :---: | :--- |
-| **ADR-01**<br>**REQ-INFRA-03** | Khởi tạo cấu trúc Monorepo bằng npm workspaces tách biệt rõ miền của A và B | `package.json`, `tsconfig.base.json`, `packages/shared-types`, `apps/api`, `apps/web` | **Hoàn thành (100%)** | `npm install` & `npm run typecheck` Pass (0 errors) |
-| **ADR-05**<br>**REQ-INFRA-03** | Thiết lập hạ tầng container hóa Local (PostgreSQL 16, Redis 7, Elasticsearch 8.12) & GitHub Actions CI | `docker-compose.yml`, `.github/workflows/ci.yml` | **Hoàn thành (100%)** | CI workflow lint/typecheck/test sẵn sàng |
-| **REQ-AUTH-01** *(Contract & DB)* | Định nghĩa Shared Auth Contract (6 vai trò `UserRole`, `UserStatus`, `JwtPayload`) & Migration số 001 + Seed tài khoản | `packages/shared-types/src/index.ts`<br>`apps/api/src/database/migrations/001_init_auth.sql` | **Hoàn thành (100%)** | Seed tự động 6 vai trò chuẩn + 1 tài khoản `LOCKED` để test |
-| **REQ-AUTH-01** *(Backend API)* | Xây dựng API Đăng nhập/Đăng xuất/Lấy hồ sơ (`/api/v1/auth/*`), `JwtAuthGuard`, `RolesGuard` và lưu vết `audit_logs` | `apps/api/src/auth/*`<br>`apps/api/src/common/guards/*` | **Hoàn thành (100%)** | Pass E2E `TC-AUTH-01` & `TC-AUTH-02` |
-| **REQ-AUTH-01** *(Frontend Web)* | Xây dựng `AuthProvider`, `ProtectedRoute` chặn theo role, `LoginPage` điều hướng tự động và khung `SystemAdmin` | `apps/web/src/core/auth/*`<br>`apps/web/src/features/system-admin/*` | **Hoàn thành (100%)** | `npm run typecheck --workspace=apps/web` Pass |
+## 2. Sinh viên A — Shared skeleton và Auth
 
----
+| Hạng mục | Trạng thái trong checkout hiện tại | Bằng chứng / ghi chú |
+|---|---|---|
+| Monorepo/workspaces | **Có** | `package.json`, `package-lock.json`, `apps/api`, `apps/web`, `packages/shared-types`; đang dùng npm workspaces. |
+| NestJS API + React Web/Auth UI | **Có; kiểm tra pass** | Auth controller/guards/service, `AuthContext`, `ProtectedRoute`, `LoginPage`; API Auth E2E pass; Web typecheck/Vite build pass. |
+| Shared role/JWT contract | **Có** | `packages/shared-types/src/index.ts`; B tiêu thụ `JwtPayload` và `UserRole`. |
+| Auth database migration/seed persistence | **Chưa có bằng chứng** | `apps/api/src/database/migrations/001_init_auth.sql` không có; AuthService hiện giữ users/audit trong memory, không phải DB persistence. |
+| Docker Compose local | **Chưa có trong checkout** | Không tìm thấy `docker-compose.yml`. |
+| GitHub Actions CI | **Chưa có trong checkout** | Không tìm thấy `.github/workflows/ci.yml`. |
+| System Admin UI | **Chưa hoàn chỉnh** | Route đang hiển thị placeholder, không coi là dashboard hoàn thiện. |
 
-## 2. Cấu trúc Monorepo & Ranh giới Phối hợp Đã Thiết lập (Tuân thủ `ADR-01`)
+Tài liệu D5 trước đây mô tả migration `001_init_auth.sql`, Docker Compose và CI đã hoàn tất. Các artefact đó chưa hiện diện trong checkout hiện tại nên được đánh dấu **chưa xác minh/chưa có**, không dùng mô tả cũ làm bằng chứng.
 
-Cấu trúc thư mục thực tế sau khi hoàn thành Ngày D5 đảm bảo tách biệt hoàn toàn giữa **Sinh viên A** và **Sinh viên B**:
+## 3. Sinh viên B — REQ-TAL-01 Talent profile
 
-```text
-labodc-system/
-├── .github/workflows/ci.yml                 # Pipeline CI tự động kiểm tra typecheck & test (Owner: A)
-├── docker-compose.yml                       # PostgreSQL 16, Redis 7, Elasticsearch 8.12 (Owner: A)
-├── package.json                             # Cấu hình npm workspaces gốc (Owner: A)
-├── tsconfig.base.json                       # Cấu hình TypeScript dùng chung (Owner: A)
-├── packages/
-│   └── shared-types/                        # Hợp đồng kiểu dữ liệu dùng chung A & B (Owner: A)
-│       ├── package.json
-│       ├── tsconfig.json
-│       └── src/index.ts                     # UserRole, UserStatus, JwtPayload, AuthTokensResponse
-├── apps/
-│   ├── api/                                 # Backend NestJS RESTful API
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── jest.config.js
-│   │   ├── src/
-│   │   │   ├── main.ts                      # Điểm khởi chạy API Server (Owner: A)
-│   │   │   ├── app.module.ts                # Root Module (Owner: A)
-│   │   │   ├── common/guards/
-│   │   │   │   ├── jwt-auth.guard.ts        # Xác thực chữ ký & hạn dùng JWT (Owner: A)
-│   │   │   │   └── roles.guard.ts           # Kiểm tra RBAC & chặn tài khoản LOCKED (Owner: A)
-│   │   │   ├── auth/
-│   │   │   │   ├── auth.module.ts           # Module xác thực nền tảng (Owner: A)
-│   │   │   │   ├── auth.service.ts          # Xử lý login, bcrypt, JWT, seed & audit log (Owner: A)
-│   │   │   │   └── auth.controller.ts       # Endpoints /api/v1/auth/* (Owner: A)
-│   │   │   └── talent/                      # Khu vực dành riêng cho Sinh viên B tích hợp REQ-TAL-01
-│   │   └── test/
-│   │       └── auth-rbac.e2e-spec.ts        # Kiểm thử tự động TC-AUTH-01 & TC-AUTH-02 (Owner: A)
-│   └── web/                                 # Frontend React + Vite + TypeScript
-│       ├── package.json
-│       ├── tsconfig.json
-│       └── src/
-│           ├── App.tsx                      # Định tuyến gốc & bảo vệ route theo vai trò (Owner: A)
-│           ├── core/auth/
-│           │   ├── AuthContext.tsx          # Quản lý phiên đăng nhập phía Client (Owner: A)
-│           │   ├── ProtectedRoute.tsx       # Chặn điều hướng trái quyền -> /403-forbidden (Owner: A)
-│           │   └── LoginPage.tsx            # Giao diện đăng nhập & phân luồng 6 vai trò (Owner: A)
-│           ├── features/system-admin/       # Khung màn hình System Admin (Owner: A)
-│           └── features/talent/             # Khu vực dành riêng cho Sinh viên B
+> Phần B được bổ sung vào checkout hiện tại để hoàn thành đầu ra D5. Code Talent hiện cũng có các trường skills/certifications và portfolio metadata thuộc D6; không suy diễn rằng code đã được giao vào đúng ngày lịch sử D5.
+
+| Hạng mục | Kết quả | Tệp / bằng chứng |
+|---|---|---|
+| API profile cá nhân | `GET /api/v1/talent/me/profile`, `PUT /api/v1/talent/me/profile`; actor lấy từ JWT, không nhận `userId` từ body. | `apps/api/src/talent/talent.controller.ts`, `talent.service.ts` |
+| Schema/migration riêng B | `talent_profiles` gắn `user_id`, `student_id` unique; migration B riêng, tham chiếu shared `users`. | `apps/api/src/database/migrations/002_b_talent_profiles.sql` |
+| Web form | Dùng Auth access token; route `/talent` và `/talent/profile` giới hạn Talent/Talent Leader; có loading, error, success, empty state. | `apps/web/src/features/talent/TalentProfilePage.tsx`, `apps/web/src/App.tsx` |
+| Test ownership và validation | API E2E kiểm tra owner từ JWT, profile self-service, Talent khác không xem được profile, role Enterprise bị 403. Unit test validation/trùng student ID. | `apps/api/test/talent.e2e-spec.ts`, `apps/api/src/talent/talent.service.spec.ts` |
+| Khả năng build/chạy Web | Bổ sung entry point còn thiếu để Web workspace build được. | `apps/web/index.html`, `apps/web/src/main.tsx` |
+| D6 mở rộng dùng chung | Skills/certifications và portfolio metadata stub có sẵn; chưa upload file bytes hoặc tạo URL public. | `POST /api/v1/talent/me/portfolio` |
+
+### Contract D5 của B
+
+- Talent/Talent Leader chỉ truy cập profile của actor hiện tại; backend lấy identity từ JWT.
+- `studentId` và `fullName` bắt buộc ở form; khoa, ngành, khóa/năm học, giới thiệu, skills, certifications là tùy chọn.
+- B không sửa Auth, roles hoặc root package/workspace config.
+- Migration B chạy sau migration tạo `users`; hiện Auth migration/runner của A chưa có nên chưa thể apply migration này trên PostgreSQL thật.
+
+### Chạy kiểm thử
+
+```powershell
+npm run typecheck --workspace=apps/api
+npm test --workspace=apps/api -- --runInBand
+npm run build --workspace=apps/web
+```
+
+Kết quả: API typecheck pass; API **3/3 suites, 9/9 tests pass**; Web TypeScript check và Vite production build pass. HTTP E2E dùng repository test double, chưa phải PostgreSQL integration test.
+
+## 4. Cùng chốt D5 — A + B
+
+| Hạng mục | Trạng thái | Kết luận |
+|---|---|---|
+| Ownership | **Đã chốt** | A sở hữu shared Auth/User/root config; B sở hữu Talent profile và migration miền B. |
+| Auth → Talent integration | **Đạt ở HTTP level** | Talent API dùng JWT actor context và shared roles; tests kiểm tra role denial và data isolation giữa actor. |
+| B hoàn thành D5 Talent slice | **Đạt ở API/Web mức code và tests** | Profile API/form/schema có trong checkout; typecheck, API tests và Web build pass. |
+| A hoàn thành Auth vertical slice | **Có code/tests; DB persistence chưa đạt/xác minh** | API Auth/RBAC có; users/audit đang in-memory, Auth DB migration không có. |
+| Auth migration, migration runner, PostgreSQL E2E | **Chưa đạt/chưa xác minh** | Không thể xác nhận migration `002_b_talent_profiles.sql` chạy trên schema Auth thật. |
+| Docker Compose và CI | **Chưa có bằng chứng trong checkout** | Không có hai file được nêu trong tài liệu D5 trước đây. |
+| Package manager/ORM | **Quyết định chuẩn đã xác nhận; checkout đang lệch** | Người dùng xác nhận giữ ADR-06 D4 `pnpm + Prisma`. D5 checkout hiện dùng npm workspaces + `pg`, không có Prisma; A cần điều chỉnh skeleton/config hoặc thống nhất migration path theo ADR trước khi mở rộng persistence D7. B không tự ý đổi root toolchain. |
+
+### Kết luận checkpoint
+
+**D5 B đã hoàn thành và kiểm thử ở mức API/Web; contract ownership với A được nối ở HTTP level. Người dùng xác nhận giữ ADR-06 `pnpm + Prisma`. Checkpoint kỹ thuật D5 A+B được ghi nhận nhưng chưa thể đánh dấu “pass hoàn toàn”** vì thiếu Auth DB migration/runner, Docker/CI evidence, DB-backed E2E và skeleton hiện chưa tuân theo package manager/ORM đã chọn.
+
+Kết luận này phản ánh checkout hiện tại, không phủ nhận báo cáo của A. Để đóng gate chung, A cần bổ sung artefact còn thiếu và căn chỉnh skeleton/migration path theo ADR-06 vào cùng branch trước khi mở rộng persistence ở D7.
