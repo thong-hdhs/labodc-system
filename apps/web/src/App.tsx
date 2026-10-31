@@ -6,6 +6,7 @@ import { LoginPage } from './core/auth/LoginPage';
 import { UserRole } from '@labodc/shared-types';
 import { TalentProfilePage } from './features/talent/TalentProfilePage';
 import { EnterpriseProfilePage } from './features/enterprise/EnterpriseProfilePage';
+import { EnterpriseProposalPage } from './features/enterprise/EnterpriseProposalPage';
 
 export const App: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ export const App: React.FC = () => {
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.ENTERPRISE]} />}>
             <Route path="/enterprise" element={<EnterpriseProfilePage />} />
+            <Route path="/enterprise/proposals" element={<EnterpriseProposalPage />} />
           </Route>
           <Route
             element={
