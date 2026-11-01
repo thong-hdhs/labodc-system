@@ -7,6 +7,7 @@ import { UserRole } from '@labodc/shared-types';
 import { TalentProfilePage } from './features/talent/TalentProfilePage';
 import { EnterpriseProfilePage } from './features/enterprise/EnterpriseProfilePage';
 import { EnterpriseProposalPage } from './features/enterprise/EnterpriseProposalPage';
+import { LabReviewQueuePage } from './features/project-admin/LabReviewQueuePage';
 
 export const App: React.FC = () => {
   return (
@@ -17,8 +18,14 @@ export const App: React.FC = () => {
           <Route element={<ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]} />}>
             <Route path="/system-admin" element={<div>System Admin Dashboard (Owner: A)</div>} />
           </Route>
-          <Route element={<ProtectedRoute allowedRoles={[UserRole.LAB_ADMIN]} />}>
-            <Route path="/lab-admin" element={<div>Lab Admin Dashboard (Owner: A)</div>} />
+          <Route
+            element={
+              <ProtectedRoute
+                allowedRoles={[UserRole.LAB_ADMIN, UserRole.SYSTEM_ADMIN]}
+              />
+            }
+          >
+            <Route path="/lab-admin" element={<LabReviewQueuePage />} />
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.ENTERPRISE]} />}>
             <Route path="/enterprise" element={<EnterpriseProfilePage />} />
