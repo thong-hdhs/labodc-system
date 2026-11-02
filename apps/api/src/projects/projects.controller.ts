@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtPayload, UserRole } from '@labodc/shared-types';
@@ -23,11 +24,27 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   /**
-   * Public/Shared Read Contract cho Sinh viên B (REQ-TAL-02: Sinh viên khám phá dự án PUBLISHED)
+   * Public/Shared Read Contract cho Sinh viên B (REQ-TAL-02: Tìm kiếm & Lọc dự án PUBLISHED)
    */
   @Get('public')
-  listPublicProjects() {
-    return this.projectsService.listPublicPublishedProjects();
+  listPublicProjects(
+    @Query('keyword') keyword?: string,
+    @Query('skill') skill?: string,
+  ) {
+    return this.projectsService.listPublicPublishedProjects({ keyword, skill });
+  }
+
+  @Get('public/:id')
+  getPublicProjectDetail(@Param('id') id: string) {
+    return this.projectsService.getPublicProjectById(id);
+  }
+
+  /**
+   * Shared Guard Contract cho Sinh viên B kiểm tra điều kiện nộp đơn ứng tuyển (D9)
+   */
+  @Get(':id/recruitment-eligibility')
+  checkRecruitmentEligibility(@Param('id') id: string) {
+    return this.projectsService.checkRecruitmentEligibility(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

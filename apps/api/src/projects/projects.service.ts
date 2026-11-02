@@ -21,6 +21,21 @@ import {
   UpdateProjectProposalDto,
 } from './project-proposal.types';
 
+export interface PublicProjectFilterQuery {
+  keyword?: string;
+  skill?: string;
+}
+
+export interface ProjectRecruitmentEligibilityDto {
+  projectId: string;
+  code: string;
+  status: ProjectStatus;
+  isOpenForApplications: boolean;
+  reason: string;
+  registrationOpenAt?: string | null;
+  registrationCloseAt?: string | null;
+}
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -266,8 +281,29 @@ export class ProjectsService {
     };
   }
 
-  listPublicPublishedProjects(): PublicProjectSummaryDto[] {
-    const published = this.proposalRepository.findAll(ProjectStatus.PUBLISHED);
+  listPublicPublishedProjects(
+    filter?: PublicProjectFilterQuery,
+  ): PublicProjectSummaryDto[] {
+    let published = this.proposalRepository.findAll(ProjectStatus.PUBLISHED);
+
+    if (filter?.keyword && filter.keyword.trim()) {
+      const kw = filter.keyword.trim().toLowerCase();
+      published = published.filter(
+        (item) =>
+          item.title.toLowerCase().includes(kw) ||
+          item.summary.toLowerCase().includes(kw) ||
+          item.companyName.toLowerCase().includes(kw) ||
+          item.code.toLowerCase().includes(kw),
+      );
+    }
+
+    if (filter?.skill && filter.skill.trim()) {
+      const targetSkill = filter.skill.trim().toLowerCase();
+      published = published.filter((item) =>
+        item.requiredSkills.some((s) => s.toLowerCase() === targetSkill),
+      );
+    }
+
     return published.map((item) => ({
       id: item.id,
       code: item.code,
@@ -285,5 +321,78 @@ export class ProjectsService {
       registrationCloseAt: item.registrationCloseAt,
       publishedAt: item.publishedAt,
     }));
+  }
+
+  getPublicProjectById(projectId: string): ProjectProposalEntity {
+    const proposal = this.proposalRepository.findById(projectId);
+    if (!proposal || proposal.status !== ProjectStatus.PUBLISHED) {
+      throw new NotFoundException(
+        `Dự án ${projectId} không tồn tại hoặc hiện không ở trạng thái công bố (PUBLISHED).`,
+      );
+    }
+    return proposal;
+  }
+
+  checkRecruitmentEligibility(
+    projectId: string,
+  ): ProjectRecruitmentEligibilityDto {
+    const proposal = this.proposalRepository.findById(projectId);
+    if (!proposal) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+
+    const nowMs = Date.now();
+    const openMs = proposal.registrationOpenAt
+      ? new Date(proposal.registrationOpenAt).getTime()
+      : 0;
+    const closeMs = proposal.registrationCloseAt
+      ? new Date(proposal.registrationCloseAt).getTime()
+      : 0;
+
+    if (proposal.status !== ProjectStatus.PUBLISHED) {
+      return {
+        projectId: proposal.id,
+        code: proposal.code,
+        status: proposal.status,
+        isOpenForApplications: false,
+        reason: `Dự án đang ở trạng thái ${proposal.status}, không mở nhận đơn ứng tuyển.`,
+        registrationOpenAt: proposal.registrationOpenAt,
+        registrationCloseAt: proposal.registrationCloseAt,
+      };
+    }
+
+    if (openMs && nowMs < openMs) {
+      return {
+        projectId: proposal.id,
+        code: proposal.code,
+        status: proposal.status,
+        isOpenForApplications: false,
+        reason: 'Chưa đến thời điểm mở nhận đơn ứng tuyển.',
+        registrationOpenAt: proposal.registrationOpenAt,
+        registrationCloseAt: proposal.registrationCloseAt,
+      };
+    }
+
+    if (closeMs && nowMs > closeMs) {
+      return {
+        projectId: proposal.id,
+        code: proposal.code,
+        status: proposal.status,
+        isOpenForApplications: false,
+        reason: 'Đã quá thời hạn đóng nhận đơn ứng tuyển (registrationCloseAt).',
+        registrationOpenAt: proposal.registrationOpenAt,
+        registrationCloseAt: proposal.registrationCloseAt,
+      };
+    }
+
+    return {
+      projectId: proposal.id,
+      code: proposal.code,
+      status: proposal.status,
+      isOpenForApplications: true,
+      reason: 'Dự án đang PUBLISHED và trong thời hạn nhận đơn hợp lệ.',
+      registrationOpenAt: proposal.registrationOpenAt,
+      registrationCloseAt: proposal.registrationCloseAt,
+    };
   }
 }

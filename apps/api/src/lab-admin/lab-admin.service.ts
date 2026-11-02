@@ -221,13 +221,15 @@ export class LabAdminService {
       throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
     }
 
+    // Cho phép công bố dự án từ APPROVED, UNPUBLISHED hoặc RECRUITMENT_CLOSED.
     if (
       proposal.status !== ProjectStatus.APPROVED &&
-      proposal.status !== ProjectStatus.UNPUBLISHED
+      proposal.status !== ProjectStatus.UNPUBLISHED &&
+      proposal.status !== ProjectStatus.RECRUITMENT_CLOSED
     ) {
       throw new ConflictException({
         code: 'INVALID_STATE_TRANSITION',
-        message: `Chỉ có thể công bố (PUBLISH) dự án đang ở trạng thái APPROVED hoặc UNPUBLISHED (hiện tại: ${proposal.status}).`,
+        message: `Chỉ có thể công bố (PUBLISH) dự án đang ở trạng thái APPROVED, UNPUBLISHED hoặc RECRUITMENT\_CLOSED (hiện tại: ${proposal.status}).`,
       });
     }
 
@@ -309,7 +311,8 @@ export class LabAdminService {
       action: 'UNPUBLISH_PROJECT',
       fromStatus: ProjectStatus.PUBLISHED,
       toStatus: ProjectStatus.UNPUBLISHED,
-      reasonNote: dto?.note?.trim() || 'Lab Admin tạm ẩn dự án khỏi cổng công khai.',
+      reasonNote:
+        dto?.note?.trim() || 'Lab Admin tạm ẩn dự án khỏi cổng công khai.',
     });
 
     return updated;
@@ -329,7 +332,7 @@ export class LabAdminService {
     if (proposal.status !== ProjectStatus.PUBLISHED) {
       throw new ConflictException({
         code: 'INVALID_STATE_TRANSITION',
-        message: `Chỉ có thể đóng nhận đơn (RECRUITMENT_CLOSED) khi dự án đang ở trạng thái PUBLISHED (hiện tại: ${proposal.status}).`,
+        message: `Chỉ có thể đóng nhận đơn (RECRUITMENT\_CLOSED) khi dự án đang ở trạng thái PUBLISHED (hiện tại: ${proposal.status}).`,
       });
     }
 
