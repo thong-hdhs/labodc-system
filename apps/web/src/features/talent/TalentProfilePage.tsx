@@ -1,4 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
 
 interface PortfolioItem {
@@ -162,6 +163,10 @@ export const TalentProfilePage: React.FC = () => {
   return (
     <main>
       <h1>Hồ sơ Talent</h1>
+      <nav>
+        <Link to="/talent/projects">Khám phá dự án</Link>{' | '}
+        <Link to="/talent/applications">Đơn ứng tuyển của tôi</Link>
+      </nav>
       <p>Email tài khoản: {user?.email}</p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}

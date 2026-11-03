@@ -8,6 +8,7 @@ import {
 import {
   JwtPayload,
   ProjectStatus,
+  PublicProjectDetailDto,
   PublicProjectSummaryDto,
   UserRole,
 } from '@labodc/shared-types';
@@ -34,6 +35,14 @@ export interface ProjectRecruitmentEligibilityDto {
   reason: string;
   registrationOpenAt?: string | null;
   registrationCloseAt?: string | null;
+}
+
+export interface ApplicationProjectSummary {
+  id: string;
+  code: string;
+  title: string;
+  companyName: string;
+  status: ProjectStatus;
 }
 
 @Injectable()
@@ -307,7 +316,7 @@ export class ProjectsService {
     return published.map((item) => ({
       id: item.id,
       code: item.code,
-      enterpriseId: item.enterpriseId || '',
+      enterpriseId: item.enterpriseId,
       companyName: item.companyName,
       title: item.title,
       summary: item.summary,
@@ -323,14 +332,46 @@ export class ProjectsService {
     }));
   }
 
-  getPublicProjectById(projectId: string): ProjectProposalEntity {
+  getPublicProjectById(projectId: string): PublicProjectDetailDto {
     const proposal = this.proposalRepository.findById(projectId);
     if (!proposal || proposal.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException(
         `Dự án ${projectId} không tồn tại hoặc hiện không ở trạng thái công bố (PUBLISHED).`,
       );
     }
-    return proposal;
+    return {
+      id: proposal.id,
+      code: proposal.code,
+      enterpriseId: proposal.enterpriseId,
+      companyName: proposal.companyName,
+      title: proposal.title,
+      summary: proposal.summary,
+      description: proposal.description,
+      deliverables: proposal.deliverables,
+      requiredSkills: proposal.requiredSkills,
+      minTeamSize: proposal.minTeamSize,
+      maxTeamSize: proposal.maxTeamSize,
+      durationWeeks: proposal.durationWeeks,
+      budgetAmount: proposal.budgetAmount,
+      status: proposal.status,
+      registrationOpenAt: proposal.registrationOpenAt,
+      registrationCloseAt: proposal.registrationCloseAt,
+      publishedAt: proposal.publishedAt,
+    };
+  }
+
+  getApplicationProjectSummary(projectId: string): ApplicationProjectSummary {
+    const project = this.proposalRepository.findById(projectId);
+    if (!project) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+    return {
+      id: project.id,
+      code: project.code,
+      title: project.title,
+      companyName: project.companyName,
+      status: project.status,
+    };
   }
 
   checkRecruitmentEligibility(

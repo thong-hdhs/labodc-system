@@ -47,3 +47,33 @@
 - [x] **Hoàn tất lát cắt dọc `REQ-ENT-02`:** Doanh nghiệp tạo nháp, sửa nháp, kiểm tra điều kiện xác thực pháp nhân `VERIFIED` trước khi gửi duyệt và khóa chỉnh sửa khi đã `SUBMITTED`.
 - [x] **Đồng bộ Contract với Sinh viên B:** Đã xuất bản `ProjectStatus` và endpoint `GET /api/v1/projects/public` để Sinh viên B kết nối module Danh sách dự án công khai (`REQ-TAL-02`).
 - [x] **Sẵn sàng cho Ngày D8–D9 (`REQ-LAB-01`):** `ProjectProposalRepository` và `ProjectsService` đã sẵn sàng để Ngày D8 Sinh viên A xây dựng **Hàng đợi Lab Admin xét duyệt đề xuất (`APPROVE` / `REJECT` / `REQUEST_INFO` kèm Reason Code bắt buộc) và Công bố dự án (`PUBLISH`)**.
+
+---
+
+## 5. Phần Sinh viên B — Khám phá dự án (`REQ-TAL-02`)
+
+### Đầu ra
+
+- Dùng shared Project read contract của A; B không tạo/sửa project lifecycle schema.
+- Màn hình `/talent/projects` hiển thị project công khai, tìm theo keyword và required skill, xem chi tiết.
+- UI lọc thêm bằng `GET /api/v1/projects/:id/recruitment-eligibility`, chỉ giữ các project đang nhận đơn; không dựa vào việc ẩn nút ở client làm kiểm soát authorization.
+- Các trạng thái loading/empty/error có thông báo rõ; chỉ dữ liệu từ public API được hiển thị.
+
+### Kiểm thử / bằng chứng
+
+| Test ID | Kịch bản | Kết quả |
+|---|---|---|
+| `TC-B-DISC-01` | Keyword/skill filter trả project `PUBLISHED` phù hợp và danh sách rỗng khi skill không khớp. | **PASS** |
+| `TC-B-DISC-02` | Project unpublish/đóng nhận đơn không được cung cấp như lựa chọn có thể ứng tuyển; detail endpoint chỉ trả project `PUBLISHED`. | **Covered by A `TC-LAB-03`; UI uses eligibility contract.** |
+
+Bằng chứng code: `apps/web/src/features/talent/TalentProjectsPage.tsx`, `apps/web/src/App.tsx`; API public/eligibility của A tại `apps/api/src/projects/*`. API E2E tổng thể pass trong `applications.e2e-spec.ts`.
+
+## 6. Cùng chốt D7 — A + B
+
+- [x] A sở hữu project source-of-truth, publish lifecycle, public summary và recruitment eligibility.
+- [x] B sở hữu Talent discovery UI/filter; dùng public endpoints của A, không sửa migration/Project state.
+- [x] Keyword/skill search và published visibility được test; chỉ project đang eligibility-open được giữ trong danh sách discovery.
+- [ ] Dữ liệu Project/API hiện vẫn dùng repository in-memory trong code; không xem migration draft là DB persistence đã chạy.
+- [ ] Hòa giải D4 chọn `pnpm + Prisma` với checkout hiện dùng npm + raw `pg`/in-memory trước khi mở rộng production persistence.
+
+**Kết luận D7:** Phần B discovery slice đã triển khai và kiểm thử ở API contract level; không claim database-backed persistence. Bắt đầu D8 theo Project API contract hiện tại.

@@ -47,4 +47,36 @@
 ## 4. Trạng thái Phối hợp A + B Cuối Ngày D8
 
 - [x] **Phần việc của Sinh viên A (D5 -> D8):** Đã hoàn thành 100% và vượt qua toàn bộ Unit Test + E2E Test (`REQ-AUTH-01`, `REQ-ENT-01`, `REQ-ENT-02`, `REQ-LAB-01`, `REQ-NFR-03`).
-- [ ] **Phần việc của Sinh viên B (Đang chờ đồng bộ D7/D8):** Sinh viên B chưa hoàn thành phần D7 (`REQ-TAL-02` — Khám phá dự án công khai). Endpoint `GET /api/v1/projects/public` và trạng thái `PUBLISHED` của Sinh viên A đã hoạt động sẵn sàng để Sinh viên B ghép nối ngay khi B hoàn tất D7/D8 mà không cần sửa đổi code của A.
+
+## 5. Phần Sinh viên B — Nộp/rút Application (`REQ-TAL-03`)
+
+### API và state
+
+| Method / endpoint | Hành vi |
+|---|---|
+| `POST /api/v1/projects/:projectId/applications` | Talent/Talent Leader nộp đơn; backend xác minh Project eligibility bằng `ProjectsService` của A, tạo `SUBMITTED`, từ chối project đóng/ẩn/ngoài thời gian và active application trùng. |
+| `GET /api/v1/talent/me/applications` | Chỉ trả đơn của actor hiện tại, gồm trạng thái hiện tại, Project summary được giới hạn và state history. |
+| `POST /api/v1/applications/:applicationId/withdraw` | Chỉ chủ đơn được rút trước `ACCEPTED`; lưu `WITHDRAWN` và history; actor khác bị từ chối. |
+
+Migration dự thảo B: `apps/api/src/database/migrations/003_b_applications.sql` — Application, unique partial index cho đơn active theo `(project_id, applicant_user_id)` và `application_state_history`. API runtime hiện dùng in-memory repository cùng pattern các module Project/Auth của checkout; migration chưa được áp dụng và không được xem là persistent storage.
+
+### Kiểm thử B
+
+| Test ID | Kịch bản | Kết quả |
+|---|---|---|
+| `TC-B-APP-01` | Gửi đơn tạo trạng thái `SUBMITTED`; danh sách trả đơn cùng project/history. | **PASS** |
+| `TC-B-APP-02` | Từ chối đơn active trùng; actor Talent khác chỉ thấy danh sách rỗng, Enterprise bị `403`. | **PASS** |
+| `TC-B-APP-03` | Talent rút đơn trước quyết định; actor khác không thể rút; rút lần nữa bị từ chối. | **PASS** |
+| `TC-B-APP-04` | Không thể nộp khi Lab đóng nhận đơn. | **PASS** |
+
+Bằng chứng: `apps/api/src/applications/*`, `apps/api/test/applications.e2e-spec.ts`; candidate UX nằm ở `apps/web/src/features/talent/TalentProjectsPage.tsx`.
+
+## 6. Cùng chốt D8 — A + B
+
+- [x] A sở hữu review/publish/close lifecycle; B chỉ tiêu thụ `checkRecruitmentEligibility` và không sửa Project schema/state.
+- [x] B đã nối flow discovery → application; kiểm tra role, owner, duplicate active application, withdraw và project closed ở HTTP E2E.
+- [x] Các quyết định D2 về `SUBMITTED`, withdraw trước accepted và Mentor là người quyết định cuối được giữ nguyên.
+- [ ] Mentor review/decision endpoint chưa thuộc D8 của B; được lên kế hoạch ở D11, do đó chưa có cách chuyển Application khỏi `SUBMITTED` trong slice hiện tại.
+- [ ] Application API runtime hiện in-memory; migration SQL mới là draft, chưa có migration runner/DB-backed behavior.
+
+**Trạng thái D8 A+B:** A review queue và B candidate apply/withdraw slices có trong checkout, API tests pass. Không tuyên bố durability/production DB integration cho đến khi migration stack được hòa giải.

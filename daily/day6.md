@@ -46,3 +46,10 @@
 - [x] **Hoàn thành song song 2 lát cắt hồ sơ:** Sinh viên A hoàn tất `REQ-ENT-01` (`apps/api/src/enterprise`, `apps/web/src/features/enterprise`); Sinh viên B hoàn tất `REQ-TAL-01` (`apps/api/src/talent`, `apps/web/src/features/talent`).
 - [x] **Không xung đột mã nguồn (Zero Merge Conflict):** Cả 2 module cùng tích hợp vào `AppModule` và `App.tsx` sạch sẽ.
 - [x] **Sẵn sàng cho Ngày D7:** `EnterpriseService` đã được export từ `EnterpriseModule` để Ngày D7 Sinh viên A triển khai `REQ-ENT-02` (**Tạo bản nháp `DRAFT` & Gửi đề xuất dự án `SUBMITTED` — kiểm tra điều kiện doanh nghiệp đã `VERIFIED`**).
+
+### Xác minh checkpoint D6 sau khi tích hợp
+
+- [x] Source code Enterprise API/Web của A và Talent API/Web của B hiện có trong cùng checkout; E2E enterprise/talent test pass trong bộ API.
+- [x] `AppModule` và `App.tsx` import hai feature slices.
+- [ ] DB-backed cross-domain E2E vẫn pending: Auth migration/runner và D4 stack convention `pnpm + Prisma` chưa được triển khai trong checkout; API repositories hiện có in-memory/pg test coverage chứ không chạy migrations thật.
+- [ ] Cần xác nhận chủ sở hữu nguồn `fullName` (User/Auth hay Talent profile) trước khi biến trường đó thành shared identity source.

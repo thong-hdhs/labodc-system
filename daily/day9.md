@@ -46,3 +46,34 @@
 
 - [x] **Hoàn tất trọn vẹn phạm vi Kỹ thuật Sprint 1 của Sinh viên A:** Từ `REQ-AUTH-01` (D5) $\rightarrow$ `REQ-ENT-01` (D6) $\rightarrow$ `REQ-ENT-02` (D7) $\rightarrow$ `REQ-LAB-01` (D8–D9) và Spike thành công PayOS Sandbox + Webhook HMAC.
 - [x] **Sẵn sàng cho Ngày D10 (Sprint 1 Review & MVP Gate 1):** Tích hợp kiểm thử End-to-End toàn luồng Giai đoạn 1 và đóng cổng nghiệm thu Sprint 1.
+
+---
+
+## 5. Phần Sinh viên B — Trạng thái đơn ứng tuyển (`REQ-TAL-03`)
+
+### Đầu ra
+
+- Candidate page `/talent/applications` đọc `GET /api/v1/talent/me/applications` với Auth token; backend chỉ truy xuất theo JWT subject.
+- Hiển thị project, ngày gửi, trạng thái application và nút rút khi còn `SUBMITTED`, `UNDER_REVIEW` hoặc `INTERVIEW`.
+- Nút làm mới giúp Talent kiểm tra quyết định mới; quyết định ACCEPT/REJECT vẫn do Mentor được phân công và chưa được triển khai ở D9 (theo lịch ở D11).
+- Khi Project đã đóng/ẩn khỏi public list, Talent vẫn xem status history và thông tin project summary ở hồ sơ ứng tuyển; public listing vẫn ẩn project.
+
+### Kiểm thử / bằng chứng
+
+| Test ID | Kịch bản | Kết quả |
+|---|---|---|
+| `TC-B-APP-STATUS-01` | Talent chỉ xem application của mình; test đối chiếu profile/app list owner theo JWT. | **PASS** |
+| `TC-B-APP-STATUS-02` | Application history có trạng thái ban đầu và transition `WITHDRAWN`; list vẫn truy xuất Project summary sau khi đóng tuyển. | **PASS** |
+| `TC-B-APP-STATUS-03` | Người dùng không phải Talent gọi endpoint application bị từ chối ở server. | **PASS** |
+
+Bằng chứng: `apps/web/src/features/talent/TalentApplicationsPage.tsx`, `apps/api/src/applications/*`, `apps/api/test/applications.e2e-spec.ts`. Project summary cho application được giới hạn ở `ProjectsService.getApplicationProjectSummary`; không trả full proposal cho candidate status view.
+
+## 6. Cùng chốt D9 — A + B
+
+- [x] A cung cấp public discovery, project detail, recruitment eligibility và publish/unpublish/close; B dùng đúng các contract đó.
+- [x] B hoàn thành D7 discovery, D8 submit/withdraw Application và D9 candidate status view; không ghi/xây project lifecycle của A.
+- [x] API tests bao phủ visibility, filter, active duplicate, đóng tuyển, actor ownership và withdraw history; Web production build pass.
+- [ ] Mentor review/accept/reject được giữ cho D11; hiện Application status chỉ có `SUBMITTED`/`WITHDRAWN` từ các flow B đã triển khai.
+- [ ] Application runtime/data và Project runtime hiện in-memory; SQL migration chưa được áp dụng vào PostgreSQL. Stack persistence và migration runner còn cần chốt theo ADR-06 `pnpm + Prisma`.
+
+**Kết luận D9:** Các lát cắt A/B có thể tích hợp qua HTTP/API contracts và test E2E. D9 logic/UI đã hoàn tất ở mức hiện tại; chưa đánh dấu toàn bộ sprint persistence hoặc Gate D10 là pass chỉ dựa trên các test in-memory.

@@ -9,6 +9,8 @@ import { EnterpriseProfilePage } from './features/enterprise/EnterpriseProfilePa
 import { EnterpriseProposalPage } from './features/enterprise/EnterpriseProposalPage';
 import { LabReviewQueuePage } from './features/project-admin/LabReviewQueuePage';
 import { PayosSandboxSpikePage } from './features/finance/PayosSandboxSpikePage';
+import { TalentProjectsPage } from './features/talent/TalentProjectsPage';
+import { TalentApplicationsPage } from './features/talent/TalentApplicationsPage';
 
 export const App: React.FC = () => {
   return (
@@ -48,11 +50,13 @@ export const App: React.FC = () => {
           <Route
             element={
               <ProtectedRoute
-                allowedRoles={[UserRole.TALENT, UserRole.TALENT_LEADER, UserRole.MENTOR]}
+                allowedRoles={[UserRole.TALENT, UserRole.TALENT_LEADER]}
               />
             }
           >
             <Route path="/talent" element={<TalentProfilePage />} />
+            <Route path="/talent/projects" element={<TalentProjectsPage />} />
+            <Route path="/talent/applications" element={<TalentApplicationsPage />} />
           </Route>
           <Route path="/403-forbidden" element={<div>403 - Bạn không có quyền truy cập trang này</div>} />
           <Route path="*" element={<Navigate replace to="/login" />} />

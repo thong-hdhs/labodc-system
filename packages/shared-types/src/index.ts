@@ -59,7 +59,7 @@ export interface AuthTokensResponse {
 export interface PublicProjectSummaryDto {
   id: string;
   code: string;
-  enterpriseId: string;
+  enterpriseId: string | null;
   companyName: string;
   title: string;
   summary: string;
@@ -72,4 +72,9 @@ export interface PublicProjectSummaryDto {
   registrationOpenAt?: string | null;
   registrationCloseAt?: string | null;
   publishedAt?: string | null;
+}
+
+export interface PublicProjectDetailDto extends PublicProjectSummaryDto {
+  description: string;
+  deliverables: string;
 }
