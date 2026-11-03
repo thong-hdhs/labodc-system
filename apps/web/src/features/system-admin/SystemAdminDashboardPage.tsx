@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
+import './system-admin-dashboard.css';
 
 interface GateSummaryResponse {
   gateCode: string;
@@ -74,11 +75,14 @@ export const SystemAdminDashboardPage: React.FC = () => {
       }
 
       setSummary(await sumRes.json());
-      if (logRes.ok) {
-        setAuditLogs(await logRes.json());
+      if (!logRes.ok) {
+        throw new Error('Không thể tải nhật ký bảo mật hệ thống.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Lỗi kết nối máy chủ API.');
+      setAuditLogs(await logRes.json());
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Lỗi kết nối máy chủ API.',
+      );
     }
   };
 
@@ -87,8 +91,9 @@ export const SystemAdminDashboardPage: React.FC = () => {
   }, [accessToken]);
 
   return (
-    <div style={{ maxWidth: 1024, margin: '32px auto', padding: 24 }}>
+    <div className="system-admin-page">
       <div
+        className="system-admin-header"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -138,6 +143,7 @@ export const SystemAdminDashboardPage: React.FC = () => {
       {summary && (
         <>
           <div
+            className="system-admin-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
@@ -243,48 +249,50 @@ export const SystemAdminDashboardPage: React.FC = () => {
           <h3>
             Nhật ký Bảo mật & Xác thực Hệ thống ({auditLogs.length} sự kiện)
           </h3>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              border: '1px solid #e2e8f0',
-            }}
-          >
-            <thead>
-              <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-                <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
-                  Mã Sự kiện
-                </th>
-                <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
-                  Vai trò (Role)
-                </th>
-                <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
-                  Hành động
-                </th>
-                <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
-                  Thời gian
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.slice(-10).map((log) => (
-                <tr key={log.id}>
-                  <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
-                    {log.id}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
-                    <strong>{log.actorRole}</strong>
-                  </td>
-                  <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
-                    {log.action}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
-                    {new Date(log.createdAt).toLocaleString('vi-VN')}
-                  </td>
+          <div className="system-admin-table-scroll">
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <thead>
+                <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
+                  <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
+                    Mã Sự kiện
+                  </th>
+                  <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
+                    Vai trò (Role)
+                  </th>
+                  <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
+                    Hành động
+                  </th>
+                  <th style={{ padding: 10, borderBottom: '1px solid #cbd5e1' }}>
+                    Thời gian
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {auditLogs.slice(-10).map((log) => (
+                  <tr key={log.id}>
+                    <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
+                      {log.id}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
+                      <strong>{log.actorRole}</strong>
+                    </td>
+                    <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
+                      {log.action}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: '1px solid #e2e8f0' }}>
+                      {new Date(log.createdAt).toLocaleString('vi-VN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

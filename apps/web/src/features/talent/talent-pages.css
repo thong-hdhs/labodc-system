@@ -1,0 +1,80 @@
+.talent-page {
+  box-sizing: border-box;
+  width: min(100% - 32px, 960px);
+  margin: 24px auto;
+  padding: 16px;
+}
+
+.talent-page nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.talent-page form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.talent-page label {
+  display: grid;
+  gap: 6px;
+}
+
+.talent-page input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+}
+
+.talent-page button {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+
+.talent-page ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.talent-page li,
+.talent-page section {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.talent-page li button + button {
+  margin-left: 8px;
+}
+
+@media (max-width: 640px) {
+  .talent-page {
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .talent-page form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .talent-page form button,
+  .talent-page li button,
+  .talent-page section button {
+    width: 100%;
+  }
+
+  .talent-page li button + button {
+    margin: 8px 0 0;
+  }
+}

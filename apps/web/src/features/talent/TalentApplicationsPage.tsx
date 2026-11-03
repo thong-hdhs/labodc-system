@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
+import './talent-pages.css';
 
 interface TalentApplication {
   id: string;
@@ -70,7 +71,7 @@ export const TalentApplicationsPage: React.FC = () => {
   };
 
   return (
-    <main>
+    <main className="talent-page">
       <h1>Đơn ứng tuyển của tôi</h1>
       <nav>
         <Link to="/talent">Hồ sơ</Link>{' | '}

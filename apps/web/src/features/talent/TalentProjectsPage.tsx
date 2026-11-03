@@ -1,6 +1,7 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
+import './talent-pages.css';
 
 interface PublicProject {
   id: string;
@@ -121,7 +122,7 @@ export const TalentProjectsPage: React.FC = () => {
   };
 
   return (
-    <main>
+    <main className="talent-page">
       <header>
         <h1>Dự án đang tuyển Talent</h1>
         <nav>

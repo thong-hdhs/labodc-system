@@ -46,7 +46,7 @@ describe('Day 10 Sprint 1 Review — End-to-End MVP Gate D10 Integration Suite (
     talentToken = talLogin.body.accessToken;
   });
 
-  it('TC-GATE-D10-01: Hành trình End-to-End Giai đoạn 1 (Health -> Enterprise KYC -> Proposal -> Lab Review & Publish -> Talent Explore -> PayOS Sandbox Webhook -> Gate Summary)', async () => {
+  it('TC-GATE-D10-01: Hành trình Health -> Enterprise KYC -> Proposal -> Lab Review/Publish -> Talent Apply/Status -> PayOS Sandbox -> Gate Summary', async () => {
     // 1. Kiểm tra Health Check Endpoint (ADR-05 & REQ-NFR-01)
     const healthRes = await request(app.getHttpServer())
       .get('/api/v1/health')
@@ -147,7 +147,28 @@ describe('Day 10 Sprint 1 Review — End-to-End MVP Gate D10 Integration Suite (
       .expect(200);
     expect(eligibilityRes.body.isOpenForApplications).toBe(true);
 
-    // 7. Doanh nghiệp tạo lệnh thanh toán PayOS Sandbox & xác thực Webhook HMAC (REQ-FIN-01/02)
+    // 7. Talent nộp đơn và kiểm tra trạng thái đơn (REQ-TAL-03)
+    const applicationRes = await request(app.getHttpServer())
+      .post(`/api/v1/projects/${projectId}/applications`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    expect(applicationRes.body.status).toBe('SUBMITTED');
+
+    const applicationsRes = await request(app.getHttpServer())
+      .get('/api/v1/talent/me/applications')
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(200);
+    expect(applicationsRes.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: applicationRes.body.id,
+          project: expect.objectContaining({ id: projectId }),
+          status: 'SUBMITTED',
+        }),
+      ]),
+    );
+
+    // 8. Doanh nghiệp tạo lệnh thanh toán PayOS Sandbox & xác thực Webhook HMAC (REQ-FIN-01/02)
     const payOrderRes = await request(app.getHttpServer())
       .post('/api/v1/payments/orders')
       .set('Authorization', `Bearer ${enterpriseToken}`)
@@ -169,7 +190,7 @@ describe('Day 10 Sprint 1 Review — End-to-End MVP Gate D10 Integration Suite (
     expect(webhookRes.body.orderStatus).toBe('PAID');
     expect(webhookRes.body.idempotentReplay).toBe(false);
 
-    // 8. System Admin kiểm tra báo cáo tổng hợp Cổng nghiệm thu MVP Gate D10
+    // 9. System Admin kiểm tra báo cáo tổng hợp Cổng nghiệm thu MVP Gate D10
     const summaryRes = await request(app.getHttpServer())
       .get('/api/v1/system-admin/mvp-gate-summary')
       .set('Authorization', `Bearer ${sysAdminToken}`)
