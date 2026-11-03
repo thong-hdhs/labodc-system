@@ -1,3 +1,4 @@
+import { SystemAdminDashboardPage } from './features/system-admin/SystemAdminDashboardPage';
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './core/auth/AuthContext';
@@ -19,7 +20,7 @@ export const App: React.FC = () => {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]} />}>
-            <Route path="/system-admin" element={<div>System Admin Dashboard (Owner: A)</div>} />
+            <Route path="/system-admin" element={<SystemAdminDashboardPage />} />
           </Route>
           <Route
             element={
