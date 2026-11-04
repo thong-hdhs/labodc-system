@@ -1,15 +1,19 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
+  ApplicationReviewAction,
   ApplicationEntity,
+  ApplicationReviewEvent,
   ApplicationStateHistoryEntity,
   ApplicationStatus,
+  InterviewOutcome,
 } from './application.types';
 
 @Injectable()
 export class ApplicationRepository {
   private readonly applications = new Map<string, ApplicationEntity>();
   private readonly history = new Map<string, ApplicationStateHistoryEntity[]>();
+  private readonly reviewEvents = new Map<string, ApplicationReviewEvent[]>();
 
   create(projectId: string, applicantUserId: string): ApplicationEntity {
     if (this.findActive(projectId, applicantUserId)) {
@@ -61,6 +65,59 @@ export class ApplicationRepository {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
+  findByProject(projectId: string): ApplicationEntity[] {
+    return [...this.applications.values()]
+      .filter((application) => application.projectId === projectId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  transition(
+    application: ApplicationEntity,
+    actorUserId: string,
+    toStatus: ApplicationStatus,
+  ): ApplicationEntity {
+    const updated: ApplicationEntity = {
+      ...application,
+      status: toStatus,
+      updatedAt: new Date().toISOString(),
+    };
+    this.applications.set(updated.id, updated);
+    this.appendHistory(
+      updated,
+      actorUserId,
+      application.status,
+      toStatus,
+      null,
+    );
+    return updated;
+  }
+
+  appendReviewEvent(
+    applicationId: string,
+    actorUserId: string,
+    action: ApplicationReviewAction,
+    interviewOutcome: InterviewOutcome | null,
+    internalNote: string | null,
+  ): ApplicationReviewEvent {
+    const event: ApplicationReviewEvent = {
+      id: randomUUID(),
+      applicationId,
+      actorUserId,
+      action,
+      interviewOutcome,
+      internalNote,
+      createdAt: new Date().toISOString(),
+    };
+    const events = this.reviewEvents.get(applicationId) ?? [];
+    events.push(event);
+    this.reviewEvents.set(applicationId, events);
+    return event;
+  }
+
+  getReviewEvents(applicationId: string): ApplicationReviewEvent[] {
+    return [...(this.reviewEvents.get(applicationId) ?? [])];
+  }
+
   withdraw(application: ApplicationEntity, actorUserId: string): ApplicationEntity {
     if (application.applicantUserId !== actorUserId) {
       throw new ConflictException({
@@ -104,6 +161,7 @@ export class ApplicationRepository {
   clearAll(): void {
     this.applications.clear();
     this.history.clear();
+    this.reviewEvents.clear();
   }
 
   private appendHistory(

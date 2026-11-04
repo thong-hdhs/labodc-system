@@ -43,6 +43,10 @@ export class TalentService {
     return profile;
   }
 
+  async getProfileForMentor(userId: string): Promise<TalentProfile | null> {
+    return this.profiles.findByUserId(userId);
+  }
+
   async updateMyProfile(
     userId: string,
     email: string,

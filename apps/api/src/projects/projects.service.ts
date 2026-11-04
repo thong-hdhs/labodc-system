@@ -67,6 +67,7 @@ export class ProjectsService {
         'Tiêu đề đề xuất dự án (title) bắt buộc và tối thiểu 5 ký tự.',
       );
     }
+    this.validateInterviewRequirement(dto.requiresInterview);
 
     const enterpriseProfile = this.enterpriseRepository.findByOwnerUserId(
       user.sub,
@@ -111,6 +112,7 @@ export class ProjectsService {
         'Tiêu đề đề xuất dự án (title) bắt buộc và tối thiểu 5 ký tự.',
       );
     }
+    this.validateInterviewRequirement(dto.requiresInterview);
 
     const enterpriseProfile = this.enterpriseRepository.findByOwnerUserId(
       user.sub,
@@ -325,6 +327,7 @@ export class ProjectsService {
       maxTeamSize: item.maxTeamSize,
       durationWeeks: item.durationWeeks,
       budgetAmount: item.budgetAmount,
+      requiresInterview: item.requiresInterview,
       status: item.status,
       registrationOpenAt: item.registrationOpenAt,
       registrationCloseAt: item.registrationCloseAt,
@@ -353,6 +356,7 @@ export class ProjectsService {
       maxTeamSize: proposal.maxTeamSize,
       durationWeeks: proposal.durationWeeks,
       budgetAmount: proposal.budgetAmount,
+      requiresInterview: proposal.requiresInterview,
       status: proposal.status,
       registrationOpenAt: proposal.registrationOpenAt,
       registrationCloseAt: proposal.registrationCloseAt,
@@ -372,6 +376,14 @@ export class ProjectsService {
       companyName: project.companyName,
       status: project.status,
     };
+  }
+
+  getProjectInterviewRequirement(projectId: string): boolean {
+    const project = this.proposalRepository.findById(projectId);
+    if (!project) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+    return project.requiresInterview;
   }
 
   checkRecruitmentEligibility(
@@ -435,5 +447,13 @@ export class ProjectsService {
       registrationOpenAt: proposal.registrationOpenAt,
       registrationCloseAt: proposal.registrationCloseAt,
     };
+  }
+
+  private validateInterviewRequirement(value: unknown): void {
+    if (value !== undefined && typeof value !== 'boolean') {
+      throw new BadRequestException(
+        'requiresInterview phải là giá trị boolean.',
+      );
+    }
   }
 }

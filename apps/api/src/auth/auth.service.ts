@@ -118,6 +118,20 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  findUserById(userId: string): Omit<UserEntity, 'passwordHash'> | null {
+    const user = [...this.users.values()].find(
+      (candidate) => candidate.id === userId,
+    );
+    if (!user) return null;
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      status: user.status,
+    };
+  }
+
   async login(
     email: string,
     plainPass: string,

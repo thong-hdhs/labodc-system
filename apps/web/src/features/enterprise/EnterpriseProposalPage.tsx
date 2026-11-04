@@ -15,6 +15,7 @@ interface ProposalItem {
   maxTeamSize: number;
   durationWeeks: number;
   budgetAmount: number;
+  requiresInterview: boolean;
   status: ProjectStatus;
   reviewNote?: string | null;
   submittedAt?: string | null;
@@ -34,6 +35,7 @@ export const EnterpriseProposalPage: React.FC = () => {
   const [maxTeamSize, setMaxTeamSize] = useState(5);
   const [durationWeeks, setDurationWeeks] = useState(8);
   const [budgetAmount, setBudgetAmount] = useState(30000000);
+  const [requiresInterview, setRequiresInterview] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ export const EnterpriseProposalPage: React.FC = () => {
     setMaxTeamSize(5);
     setDurationWeeks(8);
     setBudgetAmount(30000000);
+    setRequiresInterview(false);
   };
 
   const handleSaveDraft = async (e: React.FormEvent) => {
@@ -85,6 +88,7 @@ export const EnterpriseProposalPage: React.FC = () => {
       maxTeamSize: Number(maxTeamSize),
       durationWeeks: Number(durationWeeks),
       budgetAmount: Number(budgetAmount),
+      requiresInterview,
     };
 
     try {
@@ -159,6 +163,7 @@ export const EnterpriseProposalPage: React.FC = () => {
     setMaxTeamSize(item.maxTeamSize);
     setDurationWeeks(item.durationWeeks);
     setBudgetAmount(item.budgetAmount);
+    setRequiresInterview(item.requiresInterview);
   };
 
   return (
@@ -248,6 +253,16 @@ export const EnterpriseProposalPage: React.FC = () => {
             onChange={(e) => setSkillsInput(e.target.value)}
             style={{ width: '100%', padding: 8, marginTop: 4 }}
           />
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={requiresInterview}
+            onChange={(e) => setRequiresInterview(e.target.checked)}
+            style={{ marginRight: 8 }}
+          />
+          Yêu cầu phỏng vấn ứng viên trước khi ra quyết định
         </label>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>

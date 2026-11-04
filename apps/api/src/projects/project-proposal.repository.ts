@@ -45,6 +45,7 @@ export class ProjectProposalRepository {
       maxTeamSize: params.dto.maxTeamSize ?? 5,
       durationWeeks: params.dto.durationWeeks ?? 8,
       budgetAmount: params.dto.budgetAmount ?? 0,
+      requiresInterview: params.dto.requiresInterview ?? false,
       currency: 'VND',
       attachmentUrl: params.dto.attachmentUrl?.trim() || null,
       status: ProjectStatus.DRAFT,
@@ -133,6 +134,10 @@ export class ProjectProposalRepository {
         dto.budgetAmount !== undefined
           ? dto.budgetAmount
           : existing.budgetAmount,
+      requiresInterview:
+        dto.requiresInterview !== undefined
+          ? dto.requiresInterview
+          : existing.requiresInterview,
       attachmentUrl:
         dto.attachmentUrl !== undefined
           ? dto.attachmentUrl?.trim() || null

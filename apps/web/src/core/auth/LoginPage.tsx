@@ -27,6 +27,9 @@ export const LoginPage: React.FC = () => {
         case UserRole.ENTERPRISE:
           navigate('/enterprise');
           break;
+        case UserRole.MENTOR:
+          navigate('/mentor/applications');
+          break;
         default:
           navigate('/talent');
       }

@@ -1,0 +1,96 @@
+.mentor-applications-page {
+  box-sizing: border-box;
+  width: min(100% - 32px, 960px);
+  margin: 24px auto;
+  padding: 16px;
+}
+
+.mentor-applications-header,
+.mentor-applications-actions,
+.mentor-decision-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mentor-application-list {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mentor-application-card,
+.mentor-interview-form,
+.mentor-candidate-profile {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.mentor-interview-form {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  background: #f8fafc;
+}
+
+.mentor-candidate-profile {
+  margin: 16px 0;
+  background: #f8fafc;
+}
+
+.mentor-interview-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.mentor-interview-form select,
+.mentor-interview-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+}
+
+.mentor-interview-form textarea {
+  min-height: 100px;
+}
+
+.mentor-applications-page button {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+
+.mentor-decision-actions {
+  justify-content: flex-start;
+  margin: 16px 0;
+}
+
+@media (max-width: 600px) {
+  .mentor-applications-page {
+    width: 100%;
+    margin: 0;
+    padding: 16px;
+  }
+
+  .mentor-applications-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mentor-applications-actions,
+  .mentor-decision-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .mentor-applications-actions button,
+  .mentor-decision-actions button,
+  .mentor-application-card > button {
+    flex: 1 1 100%;
+  }
+}

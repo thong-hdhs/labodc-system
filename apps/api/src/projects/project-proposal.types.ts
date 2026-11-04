@@ -32,6 +32,7 @@ export interface ProjectProposalEntity {
   maxTeamSize: number;
   durationWeeks: number;
   budgetAmount: number;
+  requiresInterview: boolean;
   currency: 'VND';
   attachmentUrl?: string | null;
   status: ProjectStatus;
@@ -57,6 +58,7 @@ export interface CreateProjectProposalDto {
   maxTeamSize?: number;
   durationWeeks?: number;
   budgetAmount?: number;
+  requiresInterview?: boolean;
   attachmentUrl?: string;
 }
 
@@ -70,5 +72,6 @@ export interface UpdateProjectProposalDto {
   maxTeamSize?: number;
   durationWeeks?: number;
   budgetAmount?: number;
+  requiresInterview?: boolean;
   attachmentUrl?: string;
 }

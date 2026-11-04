@@ -68,6 +68,7 @@ export interface PublicProjectSummaryDto {
   maxTeamSize: number;
   durationWeeks: number;
   budgetAmount: number;
+  requiresInterview: boolean;
   status: ProjectStatus;
   registrationOpenAt?: string | null;
   registrationCloseAt?: string | null;

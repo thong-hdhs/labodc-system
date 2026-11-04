@@ -18,5 +18,6 @@ import { TalentService } from './talent.service';
       useExisting: PostgresTalentProfileRepository,
     },
   ],
+  exports: [TalentService],
 })
 export class TalentModule {}

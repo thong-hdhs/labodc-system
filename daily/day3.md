@@ -184,7 +184,7 @@ stateDiagram-v2
     [*] --> SUBMITTED : Talent gửi đơn khi project đang nhận đơn
     SUBMITTED --> UNDER_REVIEW : Mentor được phân công bắt đầu xét
     SUBMITTED --> WITHDRAWN : Talent rút đơn trước khi được chấp nhận
-    UNDER_REVIEW --> INTERVIEW : Project bật yêu cầu phỏng vấn
+    UNDER_REVIEW --> INTERVIEW : Project requiresInterview và Mentor ghi PASS/FAIL
     UNDER_REVIEW --> ACCEPTED : Mentor quyết định không cần phỏng vấn và chấp nhận
     UNDER_REVIEW --> REJECTED : Mentor từ chối
     UNDER_REVIEW --> WITHDRAWN : Talent rút đơn trước khi được chấp nhận
@@ -199,6 +199,7 @@ stateDiagram-v2
 - Tạo đơn chỉ hợp lệ khi Project Contract của A trả về `PUBLISHED`, `acceptingApplications=true` và thời gian nằm trong registration window.
 - Một Talent chỉ có tối đa một đơn không kết thúc cho mỗi project; unique constraint/idempotency phải bảo vệ trường hợp request đồng thời.
 - Interview là tùy chọn theo cấu hình project; Mentor được phân công là người quyết định cuối, Lab Admin giám sát và xử lý ngoại lệ.
+- D11 baseline: Doanh nghiệp chọn `requiresInterview` trên proposal trước khi gửi; phỏng vấn không lập lịch trong hệ thống, chỉ lưu `PASS/FAIL` và ghi chú nội bộ; không có thang điểm rubric.
 - `WITHDRAWN`, `ACCEPTED` và `REJECTED` là trạng thái cuối; không cho phép rút sau khi đã `ACCEPTED`.
 - Transition lưu actor, thời gian, trạng thái trước/sau và reason/note khi policy yêu cầu.
 
@@ -294,8 +295,8 @@ Mọi quyền được kiểm tra tại backend, không chỉ ẩn nút trên cl
 2. **Project không nhận đơn:** *Given* project chưa công bố, đã đóng hoặc ngoài registration window, *When* Talent gửi đơn trực tiếp qua API, *Then* API từ chối với lỗi nghiệp vụ chuẩn và không tạo bản ghi application.
 3. **Đăng ký đồng thời:** *Given* hai request cùng Talent/project đến đồng thời, *When* backend xử lý, *Then* chỉ một active application tồn tại; request lặp trả kết quả idempotent hoặc lỗi conflict đã định nghĩa.
 4. **Rút đơn:** *Given* application chưa `ACCEPTED`, *When* chính Talent rút, *Then* trạng thái thành `WITHDRAWN` và có audit; người khác hoặc Talent đã accepted không thể rút thay.
-5. **Mentor review:** *Given* Mentor được gán vào project, *When* duyệt application, *Then* chỉ các transition hợp lệ được phép; Mentor ngoài project nhận `403`/`404` theo error policy và dữ liệu không bị lộ.
-6. **Phỏng vấn tùy chọn:** *Given* project bật interview, *When* application vào review, *Then* phải qua trạng thái interview trước quyết định; nếu project không bật, Mentor có thể quyết định trực tiếp theo flow đã duyệt.
+5. **Mentor review:** *Given* một Mentor phụ trách chính được Lab Admin gán vào project, *When* duyệt application, *Then* chỉ Mentor hiện được gán có thể xem candidate/project scope và thực hiện transition; Mentor ngoài project nhận `403` và dữ liệu không bị lộ.
+6. **Phỏng vấn tùy chọn:** *Given* project có `requiresInterview=true`, *When* application vào review, *Then* Mentor phải ghi kết quả `PASS/FAIL` trước quyết định; project không yêu cầu interview cho phép quyết định trực tiếp từ `UNDER_REVIEW`. Ghi chú phỏng vấn là nội bộ; Talent chỉ thấy trạng thái, không thấy ghi chú/rubric.
 7. **Team:** *Given* application `ACCEPTED`, *When* Lab tạo Team, *Then* chỉ member đủ điều kiện được thêm; vi phạm `maxTeamSize` hoặc trùng membership bị backend từ chối.
 8. **Leader:** *Given* member được chỉ định/bầu theo policy và Mentor xác nhận, *When* thay Leader, *Then* chỉ có một Leader hiện hành theo policy và lịch sử appointment được lưu.
 9. **Template/file:** *Given* Mentor/Leader truy cập tài liệu, *When* họ không thuộc project/team được gán hoặc version không còn hợp lệ, *Then* backend từ chối truy cập; file URL/credential không bị lộ rộng.
@@ -309,7 +310,8 @@ Mọi quyền được kiểm tra tại backend, không chỉ ẩn nút trên cl
 
 - `talent_profiles` — hồ sơ nghiệp vụ B gắn 1:1 với `users` shared của A; họ tên/email lấy từ User contract, không tạo bản sao hoặc sửa bảng `users`. Baseline D5: `student_id` bắt buộc; `faculty`, `major`, `cohort`, `bio`, `skills`, `certifications` và portfolio references tùy chọn.
 - `applications`, `application_state_history` — Application workflow do B sở hữu; tham chiếu `projects.id` do A sở hữu.
-- `mentor_invitations`, `project_mentor_assignments` — lời mời và assignment Mentor theo Project.
+- `mentor_invitations`, `project_mentor_assignments`, `mentor_assignment_history` — lời mời, Mentor phụ trách hiện hành và lịch sử assignment.
+- `application_review_events` — kết quả phỏng vấn, quyết định và ghi chú nội bộ; API candidate không trả về các trường này.
 - `teams`, `team_members`, `team_leader_history` — nhóm, membership và lịch sử bổ nhiệm/bầu.
 - `tasks`, `task_milestones`, `task_attachments` — task/milestone và tham chiếu template/file.
 - `progress_reports`, `report_state_history`, `evaluations`, `contribution_records`.
@@ -319,7 +321,7 @@ Mọi quyền được kiểm tra tại backend, không chỉ ẩn nút trên cl
 
 - Talent profile: Talent tự đọc/tạo/cập nhật profile của mình; Lab Admin có quyền quản trị; Mentor được phân công xem profile ứng viên thuộc project; Enterprise chỉ đọc các trường cho phép của ứng viên thuộc project mình, không đọc thông tin liên hệ riêng. B không sửa identity/credentials/roles trong `users`.
 - Tiêu thụ `ProjectSummary`/`ProjectContractService.getProjectStatus(projectId)` của A: `status`, `acceptingApplications`, registration window, `maxTeamSize`, `requiredSkills`.
-- Application API B: `POST /api/v1/projects/:projectId/applications`, `GET /api/v1/talent/me/applications`, `POST /api/v1/applications/:id/withdraw`, `GET /api/v1/projects/:projectId/applications` (Mentor/Lab authorized), `PATCH /api/v1/applications/:id/decision` (Mentor assigned).
+- Application API B: `POST /api/v1/projects/:projectId/applications`, `GET /api/v1/talent/me/applications`, `POST /api/v1/applications/:id/withdraw`, Mentor assigned queue/review/interview-result/decision endpoints (D11 contract in `day11.md`).
 - Mentor/Team/Task/Report APIs phải nhận actor context từ Auth Guard của A; B không tạo lại auth hoặc tự quản lý role source-of-truth.
 - Redistribution đọc `GET /api/v1/finance/projects/:projectId/team-pool` và gửi proposal/confirmation; chỉ Finance API của A ghi Ledger.
 - Các cột trạng thái, time zone/registration close boundary, error codes, pagination, audit event shape và file access phải được ghi vào OpenAPI/shared types trước khi client phụ thuộc.
@@ -333,5 +335,7 @@ Mọi quyền được kiểm tra tại backend, không chỉ ẩn nút trên cl
 - [x] Leader do Mentor chỉ định hoặc nhóm bầu theo policy, Mentor xác nhận; Team Pool/API Ledger là ranh giới shared B/A.
 - [x] Excel/Docs chuẩn của Lab vẫn là hồ sơ chuẩn; app giữ task/report metadata và workflow; không tích hợp Jira/Trello.
 - [x] Quyền dữ liệu B giới hạn theo self/team/assigned project/own project; evaluation cá nhân không lộ cho Enterprise.
-- [ ] PO/Mentor xác nhận các chi tiết còn mở: field/eligibility, các transition/withdraw edge cases, election quorum, task states, report reviewer theo loại, escalation criteria, registration close boundary/time zone và cấu hình interview.
+- [x] Cấu hình interview được chốt ở D11: Project field `requiresInterview`; rubric chỉ là kết quả PASS/FAIL và ghi chú nội bộ, không có lịch hẹn/điểm số.
+- [x] Assignment review D11: một Mentor phụ trách chính do Lab Admin gán; lịch sử assignment được giữ.
+- [ ] PO/Mentor xác nhận các chi tiết còn mở: field/eligibility, các transition/withdraw edge cases, election quorum, task states, report reviewer theo loại, escalation criteria và registration close boundary/time zone.
 - [ ] Cập nhật shared OpenAPI/types và test fixtures trước khi client phụ thuộc vào các contract tương ứng.
