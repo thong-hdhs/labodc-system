@@ -16,6 +16,42 @@ interface PayosOrderItem {
   paidAt?: string | null;
 }
 
+interface MilestoneItem {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  amount: number;
+  orderCode: number;
+  status: 'PLANNED' | 'ESCROW_PAID' | 'SUBMITTED' | 'ACCEPTED' | 'DISBURSED';
+  deliverableUrl?: string | null;
+  deliverableNote?: string | null;
+}
+
+interface LedgerEntryItem {
+  id: string;
+  entryType: string;
+  direction: 'CREDIT' | 'DEBIT';
+  amount: number;
+  beneficiaryRole: string;
+  description: string;
+  createdAt: string;
+}
+
+interface ProjectLedgerResponse {
+  projectId: string;
+  projectCode: string;
+  projectStatus: string;
+  escrowSummary: {
+    totalEscrowDeposited: number;
+    totalDisbursed: number;
+    escrowBalance: number;
+    currency: string;
+  };
+  milestones: MilestoneItem[];
+  ledgerEntries: LedgerEntryItem[];
+}
+
 export const PayosSandboxSpikePage: React.FC = () => {
   const { user, accessToken, logout } = useAuth();
   const [orders, setOrders] = useState<PayosOrderItem[]>([]);
@@ -24,6 +60,20 @@ export const PayosSandboxSpikePage: React.FC = () => {
   const [amount, setAmount] = useState(20000000);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // State mở rộng cho Ngày D12 (Cột mốc Ký quỹ & Sổ cái 70/20/10)
+  const [milestoneDesc, setMilestoneDesc] = useState(
+    'Hoàn thành bàn giao gói sản phẩm và tài liệu nghiệm thu cột mốc.',
+  );
+  const [deliverableUrl, setDeliverableUrl] = useState(
+    'https://github.com/thong-hdhs/labodc-system/releases/tag/v1.0',
+  );
+  const [deliverableNote, setDeliverableNote] = useState(
+    'Đã hoàn tất mã nguồn, tài liệu hướng dẫn và bộ kiểm thử E2E.',
+  );
+  const [ledgerData, setLedgerData] = useState<ProjectLedgerResponse | null>(
+    null,
+  );
 
   const loadOrders = async () => {
     if (!accessToken) return;
@@ -35,8 +85,22 @@ export const PayosSandboxSpikePage: React.FC = () => {
     }
   };
 
+  const loadProjectLedger = async (targetProjectId = projectId) => {
+    if (!accessToken || !targetProjectId) return;
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/projects/${targetProjectId}/ledger`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (res.ok) {
+      setLedgerData(await res.json());
+    }
+  };
+
   useEffect(() => {
     loadOrders();
+    loadProjectLedger();
   }, [accessToken]);
 
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -97,6 +161,129 @@ export const PayosSandboxSpikePage: React.FC = () => {
         : `Webhook HMAC-SHA256 hợp lệ: Đơn #${orderCode} đã chuyển sang trạng thái ${body.orderStatus}!`,
     );
     await loadOrders();
+  };
+
+  // Các hàm xử lý nghiệp vụ Ngày D12 (Cột mốc Ký quỹ & Chia doanh thu 70/20/10)
+  const handleCreateMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch('http://localhost:3000/api/v1/payments/milestones', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        projectId,
+        title: milestoneName,
+        description: milestoneDesc,
+        amount: Number(amount),
+      }),
+    });
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Không thể tạo cột mốc ký quỹ.');
+      return;
+    }
+
+    setStatusMsg(`Đã khởi tạo cột mốc ký quỹ "${body.title}" (${body.id})!`);
+    await loadProjectLedger(projectId);
+  };
+
+  const handleConfirmEscrow = async (milestoneId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/confirm-escrow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          note: 'Xác nhận nạp tiền ký quỹ cột mốc vào Sổ cái.',
+        }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Xác nhận ký quỹ thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      `Đã xác nhận ký quỹ cột mốc ${milestoneId} (ESCROW_PAID) — Trạng thái dự án: ${body.projectStatus}!`,
+    );
+    await loadProjectLedger(projectId);
+  };
+
+  const handleSubmitDeliverable = async (milestoneId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/submit-deliverable`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          deliverableUrl,
+          deliverableNote,
+        }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Nộp sản phẩm bàn giao thất bại.');
+      return;
+    }
+
+    setStatusMsg(`Đã nộp bàn giao cho cột mốc ${milestoneId} (SUBMITTED)!`);
+    await loadProjectLedger(projectId);
+  };
+
+  const handleAcceptAndSplit = async (
+    milestoneId: string,
+    markProjectCompleted: boolean,
+  ) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/accept-and-split`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          reviewNote: 'Nghiệm thu đạt yêu cầu và giải ngân tự động 70/20/10.',
+          markProjectCompleted,
+        }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Nghiệm thu và giải ngân thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      `Đã nghiệm thu & chia doanh thu 70/20/10 cho cột mốc ${milestoneId} (70% SV: ${body.splitBreakdown.teamAmount70.toLocaleString('vi-VN')} VNĐ | 20% Mentor: ${body.splitBreakdown.mentorAmount20.toLocaleString('vi-VN')} VNĐ | 10% Lab: ${body.splitBreakdown.labAmount10.toLocaleString('vi-VN')} VNĐ) — Dự án: ${body.projectStatus}!`,
+    );
+    await loadProjectLedger(projectId);
   };
 
   return (
@@ -216,6 +403,185 @@ export const PayosSandboxSpikePage: React.FC = () => {
           </div>
         </div>
       ))}
+
+      <hr style={{ margin: '32px 0', borderColor: '#cbd5e1' }} />
+
+      <h2>
+        Quản lý Cột mốc Ký quỹ, Nghiệm thu & Sổ cái Phân bổ 70/20/10 (Ngày D12 — REQ-FIN-01/02/03)
+      </h2>
+
+      <form
+        onSubmit={handleCreateMilestone}
+        style={{
+          display: 'grid',
+          gap: 12,
+          padding: 16,
+          border: '1px solid #cbd5e1',
+          borderRadius: 8,
+          marginBottom: 20,
+          background: '#f8fafc',
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 12 }}>
+          <label>
+            Mô tả tiêu chí nghiệm thu cột mốc
+            <input
+              type="text"
+              required
+              value={milestoneDesc}
+              onChange={(e) => setMilestoneDesc(e.target.value)}
+              style={{ width: '100%', padding: 8, marginTop: 4 }}
+            />
+          </label>
+          <label>
+            URL gói bàn giao (dùng khi nộp Deliverable)
+            <input
+              type="text"
+              value={deliverableUrl}
+              onChange={(e) => setDeliverableUrl(e.target.value)}
+              style={{ width: '100%', padding: 8, marginTop: 4 }}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
+            <button type="submit" style={{ padding: '10px 14px', fontWeight: 600 }}>
+              Tạo Cột mốc Ký quỹ (D12)
+            </button>
+            <button
+              type="button"
+              onClick={() => loadProjectLedger(projectId)}
+              style={{ padding: '10px 14px' }}
+            >
+              Tải Sổ cái Dự án
+            </button>
+          </div>
+        </div>
+        <label>
+          Ghi chú bàn giao sản phẩm (Deliverable Note)
+          <input
+            type="text"
+            value={deliverableNote}
+            onChange={(e) => setDeliverableNote(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+      </form>
+
+      {ledgerData && (
+        <div style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <strong>
+              Dự án: [{ledgerData.projectCode}] ({ledgerData.projectId}) — Trạng thái:{' '}
+              {ledgerData.projectStatus}
+            </strong>
+            <span>
+              Đã ký quỹ:{' '}
+              <strong>
+                {ledgerData.escrowSummary.totalEscrowDeposited.toLocaleString('vi-VN')} VNĐ
+              </strong>{' '}
+              | Đã giải ngân 70/20/10:{' '}
+              <strong>
+                {ledgerData.escrowSummary.totalDisbursed.toLocaleString('vi-VN')} VNĐ
+              </strong>{' '}
+              | Số dư Ký quỹ:{' '}
+              <strong>
+                {ledgerData.escrowSummary.escrowBalance.toLocaleString('vi-VN')} VNĐ
+              </strong>
+            </span>
+          </div>
+
+          <h4>Danh sách Cột mốc Nghiệm thu ({ledgerData.milestones.length})</h4>
+          {ledgerData.milestones.map((ms) => (
+            <div
+              key={ms.id}
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 6,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <strong>
+                  [{ms.id}] {ms.title} — {ms.amount.toLocaleString('vi-VN')} VNĐ
+                </strong>
+                <span>
+                  Trạng thái cột mốc: <strong>{ms.status}</strong>
+                </span>
+              </div>
+              <p style={{ margin: '4px 0', fontSize: 14 }}>{ms.description}</p>
+              {ms.deliverableUrl && (
+                <p style={{ margin: '4px 0', fontSize: 13, color: '#0369a1' }}>
+                  Bàn giao: {ms.deliverableUrl} ({ms.deliverableNote})
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                {ms.status === 'PLANNED' && (
+                  <button
+                    onClick={() => handleConfirmEscrow(ms.id)}
+                    style={{ padding: '6px 12px', fontWeight: 600 }}
+                  >
+                    1. Xác nhận Ký quỹ & Kích hoạt IN_PROGRESS
+                  </button>
+                )}
+                {ms.status === 'ESCROW_PAID' && (
+                  <button
+                    onClick={() => handleSubmitDeliverable(ms.id)}
+                    style={{ padding: '6px 12px', fontWeight: 600 }}
+                  >
+                    2. Nộp Bàn giao Cột mốc (SUBMITTED)
+                  </button>
+                )}
+                {ms.status === 'SUBMITTED' && (
+                  <>
+                    <button
+                      onClick={() => handleAcceptAndSplit(ms.id, false)}
+                      style={{ padding: '6px 12px', fontWeight: 600 }}
+                    >
+                      3a. Nghiệm thu & Chia 70/20/10
+                    </button>
+                    <button
+                      onClick={() => handleAcceptAndSplit(ms.id, true)}
+                      style={{ padding: '6px 12px', fontWeight: 600 }}
+                    >
+                      3b. Nghiệm thu, Chia 70/20/10 & Đóng dự án (COMPLETED)
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <h4>Sổ cái Tài chính Bất biến ({ledgerData.ledgerEntries.length} bút toán)</h4>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Mã Bút toán</th>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Loại</th>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Chiều</th>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Thụ hưởng</th>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Số tiền (VNĐ)</th>
+                <th style={{ padding: 8, border: '1px solid #cbd5e1' }}>Diễn giải</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledgerData.ledgerEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1' }}>{entry.id}</td>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1' }}>{entry.entryType}</td>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1' }}>{entry.direction}</td>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1' }}>
+                    {entry.beneficiaryRole}
+                  </td>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1', fontWeight: 600 }}>
+                    {entry.amount.toLocaleString('vi-VN')}
+                  </td>
+                  <td style={{ padding: 8, border: '1px solid #cbd5e1' }}>{entry.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
