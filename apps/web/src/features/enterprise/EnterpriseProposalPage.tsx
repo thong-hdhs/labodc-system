@@ -22,9 +22,28 @@ interface ProposalItem {
   updatedAt: string;
 }
 
+interface ChangeRequestItem {
+  id: string;
+  code: string;
+  projectId: string;
+  projectCode: string;
+  projectTitle: string;
+  requestType: 'SCOPE_CHANGE' | 'CANCEL';
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+  reason: string;
+  impactSummary: string;
+  proposedDeliverables?: string | null;
+  proposedBudgetAmount?: number | null;
+  proposedDurationWeeks?: number | null;
+  financialSettlementNote?: string | null;
+  reviewNote?: string | null;
+  createdAt: string;
+}
+
 export const EnterpriseProposalPage: React.FC = () => {
   const { user, accessToken, logout } = useAuth();
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequestItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -36,23 +55,47 @@ export const EnterpriseProposalPage: React.FC = () => {
   const [durationWeeks, setDurationWeeks] = useState(8);
   const [budgetAmount, setBudgetAmount] = useState(30000000);
   const [requiresInterview, setRequiresInterview] = useState(false);
+
+  // State cho form Yêu cầu Đổi phạm vi / Hủy dự án (REQ-ENT-03 - D11)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [requestType, setRequestType] = useState<'SCOPE_CHANGE' | 'CANCEL'>(
+    'SCOPE_CHANGE',
+  );
+  const [crReason, setCrReason] = useState('');
+  const [crImpact, setCrImpact] = useState('');
+  const [proposedDeliverables, setProposedDeliverables] = useState('');
+  const [proposedBudget, setProposedBudget] = useState<number>(35000000);
+  const [proposedWeeks, setProposedWeeks] = useState<number>(10);
+
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadMyProposals = async () => {
+  const loadData = async () => {
     if (!accessToken) return;
-    const res = await fetch('http://localhost:3000/api/v1/projects/proposals/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const [propRes, crRes] = await Promise.all([
+      fetch('http://localhost:3000/api/v1/projects/proposals/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      fetch('http://localhost:3000/api/v1/projects/change-requests/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    ]);
+
+    if (propRes.ok) {
+      const data: ProposalItem[] = await propRes.json();
       setProposals(data);
+      if (!selectedProjectId && data.length > 0) {
+        setSelectedProjectId(data[0].id);
+      }
+    }
+    if (crRes.ok) {
+      setChangeRequests(await crRes.json());
     }
   };
 
   useEffect(() => {
-    loadMyProposals();
+    loadData();
   }, [accessToken]);
 
   const resetForm = () => {
@@ -117,7 +160,7 @@ export const EnterpriseProposalPage: React.FC = () => {
           : `Đã tạo bản nháp đề xuất ${body.code} (DRAFT)!`,
       );
       resetForm();
-      await loadMyProposals();
+      await loadData();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi không xác định');
     } finally {
@@ -144,12 +187,85 @@ export const EnterpriseProposalPage: React.FC = () => {
       setStatusMsg(
         `Đề xuất ${body.code} đã được gửi sang Hàng đợi Xét duyệt của Lab (SUBMITTED)!`,
       );
-      await loadMyProposals();
+      await loadData();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Không thể gửi duyệt');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateChangeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) return;
+    setStatusMsg(null);
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      const payload =
+        requestType === 'SCOPE_CHANGE'
+          ? {
+              requestType,
+              reason: crReason,
+              impactSummary: crImpact,
+              proposedDeliverables: proposedDeliverables.trim() || undefined,
+              proposedBudgetAmount: Number(proposedBudget),
+              proposedDurationWeeks: Number(proposedWeeks),
+            }
+          : {
+              requestType,
+              reason: crReason,
+              impactSummary: crImpact,
+            };
+
+      const res = await fetch(
+        `http://localhost:3000/api/v1/projects/${selectedProjectId}/change-requests`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.message || 'Không thể gửi yêu cầu thay đổi/hủy');
+      }
+
+      setStatusMsg(
+        `Đã gửi yêu cầu ${body.code} (${body.requestType}) sang Lab Admin chờ phê duyệt!`,
+      );
+      setCrReason('');
+      setCrImpact('');
+      setProposedDeliverables('');
+      await loadData();
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi gửi yêu cầu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdrawChangeRequest = async (requestId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+    const res = await fetch(
+      `http://localhost:3000/api/v1/projects/change-requests/${requestId}/withdraw`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Không thể rút yêu cầu.');
+      return;
+    }
+    setStatusMsg(`Đã rút lại yêu cầu ${body.code} (WITHDRAWN).`);
+    await loadData();
   };
 
   const handleSelectEdit = (item: ProposalItem) => {
@@ -167,12 +283,24 @@ export const EnterpriseProposalPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 880, margin: '32px auto', padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Quản lý Đề xuất Dự án Doanh nghiệp (REQ-ENT-02)</h1>
+    <div style={{ maxWidth: 920, margin: '32px auto', padding: 24 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <h1>
+          Quản lý Đề xuất Dự án & Yêu cầu Đổi phạm vi / Hủy (REQ-ENT-02 &
+          REQ-ENT-03)
+        </h1>
         <div style={{ display: 'flex', gap: 12 }}>
           <Link to="/enterprise" style={{ padding: '6px 12px' }}>
             Hồ sơ Pháp nhân
+          </Link>
+          <Link to="/finance/payos-spike" style={{ padding: '6px 12px' }}>
+            Thanh toán PayOS
           </Link>
           <button onClick={logout} style={{ padding: '6px 12px' }}>
             Đăng xuất ({user?.email})
@@ -181,12 +309,26 @@ export const EnterpriseProposalPage: React.FC = () => {
       </div>
 
       {statusMsg && (
-        <div style={{ padding: 10, background: '#dcfce7', color: '#166534', marginBottom: 12 }}>
+        <div
+          style={{
+            padding: 10,
+            background: '#dcfce7',
+            color: '#166534',
+            marginBottom: 12,
+          }}
+        >
           {statusMsg}
         </div>
       )}
       {errorMsg && (
-        <div style={{ padding: 10, background: '#fee2e2', color: '#991b1b', marginBottom: 12 }}>
+        <div
+          style={{
+            padding: 10,
+            background: '#fee2e2',
+            color: '#991b1b',
+            marginBottom: 12,
+          }}
+        >
           {errorMsg}
         </div>
       )}
@@ -202,7 +344,11 @@ export const EnterpriseProposalPage: React.FC = () => {
           marginBottom: 24,
         }}
       >
-        <h3>{editingId ? 'Chỉnh sửa Bản nháp Đề xuất' : 'Tạo Bản nháp Đề xuất Dự án Mới (DRAFT)'}</h3>
+        <h3>
+          {editingId
+            ? 'Chỉnh sửa Bản nháp Đề xuất'
+            : '1. Tạo Bản nháp Đề xuất Dự án Mới (DRAFT)'}
+        </h3>
 
         <label>
           Tiêu đề dự án *
@@ -265,7 +411,13 @@ export const EnterpriseProposalPage: React.FC = () => {
           Yêu cầu phỏng vấn ứng viên trước khi ra quyết định
         </label>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gap: 12,
+          }}
+        >
           <label>
             SV tối thiểu
             <input
@@ -310,18 +462,26 @@ export const EnterpriseProposalPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button type="submit" disabled={loading} style={{ padding: '10px 16px', fontWeight: 600 }}>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ padding: '10px 16px', fontWeight: 600 }}
+          >
             {editingId ? 'Lưu cập nhật bản nháp' : 'Lưu Bản nháp (DRAFT)'}
           </button>
           {editingId && (
-            <button type="button" onClick={resetForm} style={{ padding: '10px 16px' }}>
+            <button
+              type="button"
+              onClick={resetForm}
+              style={{ padding: '10px 16px' }}
+            >
               Hủy chỉnh sửa
             </button>
           )}
         </div>
       </form>
 
-      <h3>Danh sách Đề xuất Dự án của Doanh nghiệp ({proposals.length})</h3>
+      <h3>2. Danh sách Đề xuất & Dự án của Doanh nghiệp ({proposals.length})</h3>
       {proposals.map((item) => {
         const isEditable =
           item.status === ProjectStatus.DRAFT ||
@@ -346,15 +506,21 @@ export const EnterpriseProposalPage: React.FC = () => {
             </div>
             <p style={{ margin: '6px 0' }}>{item.summary}</p>
             <p style={{ margin: '4px 0', fontSize: 14 }}>
-              Kỹ năng: {item.requiredSkills.join(', ')} | Quy mô: {item.minTeamSize}–
-              {item.maxTeamSize} SV | Ngân sách: {item.budgetAmount.toLocaleString('vi-VN')} VNĐ
+              Deliverables: {item.deliverables} | Kỹ năng:{' '}
+              {item.requiredSkills.join(', ')} | Thời lượng: {item.durationWeeks}{' '}
+              tuần | Ngân sách: {item.budgetAmount.toLocaleString('vi-VN')} VNĐ
             </p>
             {item.reviewNote && (
-              <p style={{ color: '#b91c1c' }}>Phản hồi từ Lab Admin: {item.reviewNote}</p>
+              <p style={{ color: '#b91c1c' }}>
+                Phản hồi từ Lab Admin: {item.reviewNote}
+              </p>
             )}
             {isEditable && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={() => handleSelectEdit(item)} style={{ padding: '6px 12px' }}>
+                <button
+                  onClick={() => handleSelectEdit(item)}
+                  style={{ padding: '6px 12px' }}
+                >
                   Chỉnh sửa nháp
                 </button>
                 <button
@@ -368,6 +534,182 @@ export const EnterpriseProposalPage: React.FC = () => {
           </div>
         );
       })}
+
+      <form
+        onSubmit={handleCreateChangeRequest}
+        style={{
+          display: 'grid',
+          gap: 12,
+          padding: 16,
+          border: '1px solid #cbd5e1',
+          borderRadius: 8,
+          marginTop: 28,
+          marginBottom: 24,
+          background: '#f8fafc',
+        }}
+      >
+        <h3>
+          3. Gửi Yêu cầu Đổi phạm vi (SCOPE_CHANGE) hoặc Hủy dự án (CANCEL) —
+          Ngày D11 (REQ-ENT-03)
+        </h3>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr',
+            gap: 12,
+          }}
+        >
+          <label>
+            Chọn dự án cần gửi yêu cầu *
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              style={{ width: '100%', padding: 8, marginTop: 4 }}
+            >
+              {proposals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.code}] {p.title} ({p.status})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Loại yêu cầu *
+            <select
+              value={requestType}
+              onChange={(e) =>
+                setRequestType(e.target.value as 'SCOPE_CHANGE' | 'CANCEL')
+              }
+              style={{ width: '100%', padding: 8, marginTop: 4 }}
+            >
+              <option value="SCOPE_CHANGE">
+                SCOPE_CHANGE (Đổi phạm vi / ngân sách / thời gian)
+              </option>
+              <option value="CANCEL">CANCEL (Xin hủy dự án)</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Lý do yêu cầu thay đổi / hủy (Tối thiểu 15 ký tự) *
+          <input
+            type="text"
+            required
+            placeholder="Ví dụ: Mở rộng thêm phân hệ Mobile App và tăng ngân sách tài trợ thêm 15 triệu VNĐ..."
+            value={crReason}
+            onChange={(e) => setCrReason(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+
+        <label>
+          Đánh giá tác động tới tiến độ / nhóm thực hiện (Tối thiểu 10 ký tự) *
+          <input
+            type="text"
+            required
+            placeholder="Ví dụ: Cần kéo dài thêm 2 tuần ở Sprint cuối và bổ sung 10 triệu VNĐ vào quỹ nhóm..."
+            value={crImpact}
+            onChange={(e) => setCrImpact(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+
+        {requestType === 'SCOPE_CHANGE' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr 1fr',
+              gap: 12,
+            }}
+          >
+            <label>
+              Deliverables đề xuất mới
+              <input
+                type="text"
+                placeholder="Web Portal + REST API + Mobile App"
+                value={proposedDeliverables}
+                onChange={(e) => setProposedDeliverables(e.target.value)}
+                style={{ width: '100%', padding: 8, marginTop: 4 }}
+              />
+            </label>
+            <label>
+              Ngân sách mới (VNĐ)
+              <input
+                type="number"
+                min={1000000}
+                step={1000000}
+                value={proposedBudget}
+                onChange={(e) => setProposedBudget(Number(e.target.value))}
+                style={{ width: '100%', padding: 8, marginTop: 4 }}
+              />
+            </label>
+            <label>
+              Thời lượng mới (tuần)
+              <input
+                type="number"
+                min={1}
+                value={proposedWeeks}
+                onChange={(e) => setProposedWeeks(Number(e.target.value))}
+                style={{ width: '100%', padding: 8, marginTop: 4 }}
+              />
+            </label>
+          </div>
+        )}
+
+        <div>
+          <button
+            type="submit"
+            disabled={loading || proposals.length === 0}
+            style={{ padding: '10px 16px', fontWeight: 600 }}
+          >
+            Gửi Yêu cầu sang Lab Admin
+          </button>
+        </div>
+      </form>
+
+      <h3>
+        4. Lịch sử Yêu cầu Đổi phạm vi / Hủy dự án của Doanh nghiệp (
+        {changeRequests.length})
+      </h3>
+      {changeRequests.map((cr) => (
+        <div
+          key={cr.id}
+          style={{
+            border: '1px solid #cbd5e1',
+            borderRadius: 8,
+            padding: 14,
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <strong>
+              [{cr.code}] Dự án {cr.projectCode}: {cr.requestType}
+            </strong>
+            <span>
+              Trạng thái: <strong>{cr.status}</strong>
+            </span>
+          </div>
+          <p style={{ margin: '6px 0', fontSize: 14 }}>
+            Lý do: {cr.reason} | Tác động: {cr.impactSummary}
+          </p>
+          {cr.reviewNote && (
+            <p style={{ margin: '4px 0', fontSize: 14, color: '#0369a1' }}>
+              Quyết định của Lab Admin: {cr.reviewNote}{' '}
+              {cr.financialSettlementNote
+                ? `(${cr.financialSettlementNote})`
+                : ''}
+            </p>
+          )}
+          {cr.status === 'PENDING_APPROVAL' && (
+            <button
+              onClick={() => handleWithdrawChangeRequest(cr.id)}
+              style={{ padding: '6px 12px', marginTop: 6 }}
+            >
+              Rút lại yêu cầu (Withdraw)
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 };

@@ -8,7 +8,6 @@ import {
 import {
   JwtPayload,
   ProjectStatus,
-  PublicProjectDetailDto,
   PublicProjectSummaryDto,
   UserRole,
 } from '@labodc/shared-types';
@@ -16,8 +15,12 @@ import { EnterpriseProfileRepository } from '../enterprise/enterprise-profile.re
 import { EnterpriseVerificationStatus } from '../enterprise/enterprise-profile.types';
 import { ProjectProposalRepository } from './project-proposal.repository';
 import {
+  ChangeRequestStatus,
+  ChangeRequestType,
+  CreateProjectChangeRequestDto,
   CreateProjectProposalDto,
   ProjectAuditLogEntity,
+  ProjectChangeRequestEntity,
   ProjectProposalEntity,
   UpdateProjectProposalDto,
 } from './project-proposal.types';
@@ -37,13 +40,18 @@ export interface ProjectRecruitmentEligibilityDto {
   registrationCloseAt?: string | null;
 }
 
-export interface ApplicationProjectSummary {
-  id: string;
-  code: string;
-  title: string;
-  companyName: string;
-  status: ProjectStatus;
-}
+const SCOPE_CHANGE_ALLOWED_STATUSES = new Set<ProjectStatus>([
+  ProjectStatus.PUBLISHED,
+  ProjectStatus.RECRUITMENT_CLOSED,
+  ProjectStatus.IN_PROGRESS,
+]);
+
+const CANCEL_ALLOWED_STATUSES = new Set<ProjectStatus>([
+  ProjectStatus.APPROVED,
+  ProjectStatus.PUBLISHED,
+  ProjectStatus.RECRUITMENT_CLOSED,
+  ProjectStatus.IN_PROGRESS,
+]);
 
 @Injectable()
 export class ProjectsService {
@@ -318,7 +326,7 @@ export class ProjectsService {
     return published.map((item) => ({
       id: item.id,
       code: item.code,
-      enterpriseId: item.enterpriseId,
+      enterpriseId: item.enterpriseId || '',
       companyName: item.companyName,
       title: item.title,
       summary: item.summary,
@@ -335,17 +343,18 @@ export class ProjectsService {
     }));
   }
 
-  getPublicProjectById(projectId: string): PublicProjectDetailDto {
+  getPublicProjectById(projectId: string) {
     const proposal = this.proposalRepository.findById(projectId);
     if (!proposal || proposal.status !== ProjectStatus.PUBLISHED) {
       throw new NotFoundException(
         `Dự án ${projectId} không tồn tại hoặc hiện không ở trạng thái công bố (PUBLISHED).`,
       );
     }
+
     return {
       id: proposal.id,
       code: proposal.code,
-      enterpriseId: proposal.enterpriseId,
+      enterpriseId: proposal.enterpriseId || '',
       companyName: proposal.companyName,
       title: proposal.title,
       summary: proposal.summary,
@@ -357,24 +366,11 @@ export class ProjectsService {
       durationWeeks: proposal.durationWeeks,
       budgetAmount: proposal.budgetAmount,
       requiresInterview: proposal.requiresInterview,
+      currency: proposal.currency,
       status: proposal.status,
-      registrationOpenAt: proposal.registrationOpenAt,
-      registrationCloseAt: proposal.registrationCloseAt,
-      publishedAt: proposal.publishedAt,
-    };
-  }
-
-  getApplicationProjectSummary(projectId: string): ApplicationProjectSummary {
-    const project = this.proposalRepository.findById(projectId);
-    if (!project) {
-      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
-    }
-    return {
-      id: project.id,
-      code: project.code,
-      title: project.title,
-      companyName: project.companyName,
-      status: project.status,
+      registrationOpenAt: proposal.registrationOpenAt ?? null,
+      registrationCloseAt: proposal.registrationCloseAt ?? null,
+      publishedAt: proposal.publishedAt ?? null,
     };
   }
 
@@ -455,5 +451,260 @@ export class ProjectsService {
         'requiresInterview phải là giá trị boolean.',
       );
     }
+  }
+
+  /**
+   * Shared Read Helper cho ApplicationsService của Sinh viên B (REQ-TAL-03)
+   */
+  getApplicationProjectSummary(
+    projectId: string,
+  ): Pick<
+    ProjectProposalEntity,
+    | 'id'
+    | 'code'
+    | 'enterpriseId'
+    | 'companyName'
+    | 'title'
+    | 'summary'
+    | 'requiredSkills'
+    | 'minTeamSize'
+    | 'maxTeamSize'
+    | 'durationWeeks'
+    | 'budgetAmount'
+    | 'currency'
+    | 'status'
+    | 'registrationOpenAt'
+    | 'registrationCloseAt'
+    | 'publishedAt'
+  > {
+    const item = this.proposalRepository.findById(projectId);
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+
+    return {
+      id: item.id,
+      code: item.code,
+      enterpriseId: item.enterpriseId || '',
+      companyName: item.companyName,
+      title: item.title,
+      summary: item.summary,
+      requiredSkills: item.requiredSkills,
+      minTeamSize: item.minTeamSize,
+      maxTeamSize: item.maxTeamSize,
+      durationWeeks: item.durationWeeks,
+      budgetAmount: item.budgetAmount,
+      currency: item.currency,
+      status: item.status,
+      registrationOpenAt: item.registrationOpenAt ?? null,
+      registrationCloseAt: item.registrationCloseAt ?? null,
+      publishedAt: item.publishedAt ?? null,
+    };
+  }
+
+  /**
+   * REQ-ENT-03 (Ngày D11): Doanh nghiệp tạo yêu cầu Đổi phạm vi (SCOPE_CHANGE) hoặc Hủy dự án (CANCEL)
+   */
+  createChangeRequest(
+    user: JwtPayload,
+    projectId: string,
+    dto: CreateProjectChangeRequestDto,
+  ): ProjectChangeRequestEntity {
+    if (user.role !== UserRole.ENTERPRISE) {
+      throw new ForbiddenException(
+        'Chỉ tài khoản Doanh nghiệp (ENTERPRISE) mới có quyền gửi yêu cầu đổi phạm vi hoặc hủy dự án.',
+      );
+    }
+
+    const project = this.proposalRepository.findById(projectId);
+    if (!project) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+
+    if (project.ownerUserId !== user.sub) {
+      throw new ForbiddenException(
+        'Vi phạm quyền sở hữu: Bạn không thể gửi yêu cầu thay đổi/hủy đối với dự án của doanh nghiệp khác.',
+      );
+    }
+
+    if (
+      dto.requestType !== ChangeRequestType.SCOPE_CHANGE &&
+      dto.requestType !== ChangeRequestType.CANCEL
+    ) {
+      throw new BadRequestException(
+        'Loại yêu cầu (requestType) phải là SCOPE_CHANGE hoặc CANCEL.',
+      );
+    }
+
+    if (
+      dto.requestType === ChangeRequestType.SCOPE_CHANGE &&
+      !SCOPE_CHANGE_ALLOWED_STATUSES.has(project.status)
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_PROJECT_STATE_FOR_CHANGE_REQUEST',
+        message: `Chỉ cho phép yêu cầu Đổi phạm vi (SCOPE_CHANGE) khi dự án đang ở trạng thái PUBLISHED, RECRUITMENT_CLOSED hoặc IN_PROGRESS (hiện tại: ${project.status}).`,
+      });
+    }
+
+    if (
+      dto.requestType === ChangeRequestType.CANCEL &&
+      !CANCEL_ALLOWED_STATUSES.has(project.status)
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_PROJECT_STATE_FOR_CHANGE_REQUEST',
+        message: `Chỉ cho phép yêu cầu Hủy dự án (CANCEL) khi dự án đang ở trạng thái APPROVED, PUBLISHED, RECRUITMENT_CLOSED hoặc IN_PROGRESS (hiện tại: ${project.status}).`,
+      });
+    }
+
+    const existingPending = this.proposalRepository
+      .findChangeRequestsByProjectId(projectId)
+      .find((cr) => cr.status === ChangeRequestStatus.PENDING_APPROVAL);
+
+    if (existingPending) {
+      throw new ConflictException({
+        code: 'ACTIVE_CHANGE_REQUEST_EXISTS',
+        message: `Dự án ${project.code} đang có yêu cầu ${existingPending.code} chờ Lab Admin phê duyệt (PENDING_APPROVAL).`,
+      });
+    }
+
+    if (!dto.reason || dto.reason.trim().length < 15) {
+      throw new BadRequestException(
+        'Lý do yêu cầu thay đổi/hủy (reason) bắt buộc tối thiểu 15 ký tự.',
+      );
+    }
+
+    if (!dto.impactSummary || dto.impactSummary.trim().length < 10) {
+      throw new BadRequestException(
+        'Đánh giá tác động (impactSummary) bắt buộc tối thiểu 10 ký tự.',
+      );
+    }
+
+    if (dto.requestType === ChangeRequestType.SCOPE_CHANGE) {
+      const hasProposedChange =
+        (dto.proposedDeliverables &&
+          dto.proposedDeliverables.trim().length >= 5) ||
+        dto.proposedBudgetAmount !== undefined ||
+        dto.proposedDurationWeeks !== undefined ||
+        dto.proposedMaxTeamSize !== undefined;
+
+      if (!hasProposedChange) {
+        throw new BadRequestException(
+          'Yêu cầu Đổi phạm vi (SCOPE_CHANGE) phải đề xuất ít nhất 1 thay đổi cụ thể (deliverables, budgetAmount, durationWeeks hoặc maxTeamSize).',
+        );
+      }
+
+      if (
+        dto.proposedBudgetAmount !== undefined &&
+        dto.proposedBudgetAmount <= 0
+      ) {
+        throw new BadRequestException(
+          'Ngân sách đề xuất mới (proposedBudgetAmount) phải lớn hơn 0 VNĐ.',
+        );
+      }
+
+      if (
+        dto.proposedDurationWeeks !== undefined &&
+        dto.proposedDurationWeeks < 1
+      ) {
+        throw new BadRequestException(
+          'Thời lượng đề xuất mới (proposedDurationWeeks) phải từ 1 tuần trở lên.',
+        );
+      }
+    }
+
+    const created = this.proposalRepository.createChangeRequest({
+      project,
+      enterpriseUserId: user.sub,
+      dto,
+    });
+
+    this.proposalRepository.appendAuditLog({
+      projectId: project.id,
+      actorUserId: user.sub,
+      actorRole: user.role,
+      action:
+        dto.requestType === ChangeRequestType.CANCEL
+          ? 'SUBMIT_CANCEL_REQUEST'
+          : 'SUBMIT_SCOPE_CHANGE_REQUEST',
+      fromStatus: project.status,
+      toStatus: project.status,
+      reasonNote: `[${created.code}] ${dto.reason.trim()}`,
+    });
+
+    return created;
+  }
+
+  withdrawChangeRequest(
+    user: JwtPayload,
+    requestId: string,
+  ): ProjectChangeRequestEntity {
+    const reqEntity = this.proposalRepository.findChangeRequestById(requestId);
+    if (!reqEntity) {
+      throw new NotFoundException(
+        `Không tìm thấy yêu cầu thay đổi/hủy ${requestId}.`,
+      );
+    }
+
+    if (reqEntity.enterpriseUserId !== user.sub) {
+      throw new ForbiddenException(
+        'Vi phạm quyền sở hữu: Bạn không thể rút yêu cầu của doanh nghiệp khác.',
+      );
+    }
+
+    if (reqEntity.status !== ChangeRequestStatus.PENDING_APPROVAL) {
+      throw new ConflictException({
+        code: 'INVALID_CHANGE_REQUEST_STATE',
+        message: `Chỉ có thể rút lại yêu cầu khi đang ở trạng thái PENDING_APPROVAL (hiện tại: ${reqEntity.status}).`,
+      });
+    }
+
+    const project = this.proposalRepository.findById(reqEntity.projectId);
+    const updated = this.proposalRepository.saveChangeRequest({
+      ...reqEntity,
+      status: ChangeRequestStatus.WITHDRAWN,
+    });
+
+    if (project) {
+      this.proposalRepository.appendAuditLog({
+        projectId: project.id,
+        actorUserId: user.sub,
+        actorRole: user.role,
+        action: 'WITHDRAW_CHANGE_REQUEST',
+        fromStatus: project.status,
+        toStatus: project.status,
+        reasonNote: `Doanh nghiệp tự rút lại yêu cầu ${reqEntity.code}.`,
+      });
+    }
+
+    return updated;
+  }
+
+  listMyChangeRequests(user: JwtPayload): ProjectChangeRequestEntity[] {
+    if (user.role !== UserRole.ENTERPRISE) {
+      throw new ForbiddenException(
+        'Chỉ tài khoản Doanh nghiệp mới được truy vấn danh sách yêu cầu thay đổi/hủy cá nhân.',
+      );
+    }
+    return this.proposalRepository.findChangeRequestsByOwner(user.sub);
+  }
+
+  listProjectChangeRequests(
+    user: JwtPayload,
+    projectId: string,
+  ): ProjectChangeRequestEntity[] {
+    const project = this.proposalRepository.findById(projectId);
+    if (!project) {
+      throw new NotFoundException(`Không tìm thấy dự án ${projectId}.`);
+    }
+
+    const isAdmin =
+      user.role === UserRole.LAB_ADMIN || user.role === UserRole.SYSTEM_ADMIN;
+    if (!isAdmin && project.ownerUserId !== user.sub) {
+      throw new ForbiddenException(
+        'Vi phạm cách ly dữ liệu: Bạn không có quyền xem yêu cầu thay đổi của dự án doanh nghiệp khác.',
+      );
+    }
+
+    return this.proposalRepository.findChangeRequestsByProjectId(projectId);
   }
 }

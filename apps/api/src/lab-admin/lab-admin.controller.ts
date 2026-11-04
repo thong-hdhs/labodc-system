@@ -12,11 +12,14 @@ import {
 import { JwtPayload, ProjectStatus, UserRole } from '@labodc/shared-types';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, Roles, RolesGuard } from '../common/guards/roles.guard';
+import { ChangeRequestStatus } from '../projects/project-proposal.types';
 import { LabAdminService } from './lab-admin.service';
 import {
+  ApproveChangeRequestDto,
   ApproveProposalDto,
   LifecycleNoteDto,
   PublishProjectDto,
+  RejectChangeRequestDto,
   ReviewDecisionWithReasonDto,
 } from './lab-admin.types';
 
@@ -100,5 +103,46 @@ export class LabAdminController {
     @Body() dto?: LifecycleNoteDto,
   ) {
     return this.labAdminService.closeRecruitment(user, id, dto);
+  }
+
+  @Post('projects/:id/start-progress')
+  @HttpCode(HttpStatus.OK)
+  startProjectProgress(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto?: LifecycleNoteDto,
+  ) {
+    return this.labAdminService.startProjectProgress(user, id, dto);
+  }
+
+  /**
+   * REQ-LAB-02 (Ngày D11): Quản lý & Phê duyệt Yêu cầu Đổi phạm vi / Hủy dự án
+   */
+  @Get('change-requests')
+  listChangeRequests(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status?: ChangeRequestStatus,
+  ) {
+    return this.labAdminService.listChangeRequestsQueue(user, status);
+  }
+
+  @Post('change-requests/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  approveChangeRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') requestId: string,
+    @Body() dto?: ApproveChangeRequestDto,
+  ) {
+    return this.labAdminService.approveChangeRequest(user, requestId, dto);
+  }
+
+  @Post('change-requests/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  rejectChangeRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') requestId: string,
+    @Body() dto: RejectChangeRequestDto,
+  ) {
+    return this.labAdminService.rejectChangeRequest(user, requestId, dto);
   }
 }

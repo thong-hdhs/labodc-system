@@ -34,10 +34,31 @@ interface ProposalQueueItem {
   registrationCloseAt?: string | null;
 }
 
+interface ChangeRequestQueueItem {
+  id: string;
+  code: string;
+  projectId: string;
+  projectCode: string;
+  projectTitle: string;
+  companyName: string;
+  requestType: 'SCOPE_CHANGE' | 'CANCEL';
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+  reason: string;
+  impactSummary: string;
+  proposedDeliverables?: string | null;
+  proposedBudgetAmount?: number | null;
+  proposedDurationWeeks?: number | null;
+  financialSettlementNote?: string | null;
+  reviewNote?: string | null;
+}
+
 export const LabReviewQueuePage: React.FC = () => {
   const { user, accessToken, logout } = useAuth();
   const [enterprises, setEnterprises] = useState<EnterpriseItem[]>([]);
   const [proposals, setProposals] = useState<ProposalQueueItem[]>([]);
+  const [changeRequests, setChangeRequests] = useState<
+    ChangeRequestQueueItem[]
+  >([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [reasonCode, setReasonCode] = useState<ProposalRejectionReasonCode>(
     ProposalRejectionReasonCode.MISSING_SCOPE,
@@ -47,17 +68,21 @@ export const LabReviewQueuePage: React.FC = () => {
     const d = new Date(Date.now() + 14 * 86400000);
     return d.toISOString().slice(0, 10);
   });
+  const [crDecisionNote, setCrDecisionNote] = useState<string>('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!accessToken) return;
     const query = statusFilter ? `?status=${statusFilter}` : '';
-    const [entRes, propRes] = await Promise.all([
+    const [entRes, propRes, crRes] = await Promise.all([
       fetch('http://localhost:3000/api/v1/enterprises', {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
       fetch(`http://localhost:3000/api/v1/lab-admin/proposals${query}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      fetch('http://localhost:3000/api/v1/lab-admin/change-requests', {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
     ]);
@@ -68,6 +93,9 @@ export const LabReviewQueuePage: React.FC = () => {
     if (propRes.ok) {
       setProposals(await propRes.json());
     }
+    if (crRes.ok) {
+      setChangeRequests(await crRes.json());
+    }
   };
 
   useEffect(() => {
@@ -77,17 +105,20 @@ export const LabReviewQueuePage: React.FC = () => {
   const handleVerifyEnterprise = async (id: string) => {
     setStatusMsg(null);
     setErrorMsg(null);
-    const res = await fetch(`http://localhost:3000/api/v1/enterprises/${id}/verify`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+    const res = await fetch(
+      `http://localhost:3000/api/v1/enterprises/${id}/verify`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          status: 'VERIFIED',
+          note: 'Đã xác minh pháp nhân và mã số thuế doanh nghiệp.',
+        }),
       },
-      body: JSON.stringify({
-        status: 'VERIFIED',
-        note: 'Đã xác minh pháp nhân và mã số thuế doanh nghiệp.',
-      }),
-    });
+    );
     if (res.ok) {
       setStatusMsg('Đã xác thực pháp nhân doanh nghiệp (VERIFIED) thành công!');
       await loadData();
@@ -109,7 +140,8 @@ export const LabReviewQueuePage: React.FC = () => {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          reviewNote: reasonNote.trim() || 'Đề xuất đạt yêu cầu xét duyệt của Lab.',
+          reviewNote:
+            reasonNote.trim() || 'Đề xuất đạt yêu cầu xét duyệt của Lab.',
         }),
       },
     );
@@ -176,13 +208,15 @@ export const LabReviewQueuePage: React.FC = () => {
       setErrorMsg(body.message || 'Công bố dự án thất bại.');
       return;
     }
-    setStatusMsg(`Dự án ${body.code} đã được công bố (PUBLISHED) cho sinh viên!`);
+    setStatusMsg(
+      `Dự án ${body.code} đã được công bố (PUBLISHED) cho sinh viên!`,
+    );
     await loadData();
   };
 
   const handleLifecycleControl = async (
     id: string,
-    endpoint: 'unpublish' | 'close-recruitment',
+    endpoint: 'unpublish' | 'close-recruitment' | 'start-progress',
   ) => {
     setStatusMsg(null);
     setErrorMsg(null);
@@ -206,22 +240,89 @@ export const LabReviewQueuePage: React.FC = () => {
     await loadData();
   };
 
+  const handleChangeRequestDecision = async (
+    requestId: string,
+    action: 'approve' | 'reject',
+  ) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const payload =
+      action === 'approve'
+        ? {
+            reviewNote:
+              crDecisionNote.trim() ||
+              'Lab Admin chấp thuận yêu cầu thay đổi/hủy dự án.',
+          }
+        : {
+            reviewNote: crDecisionNote.trim(),
+          };
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/lab-admin/change-requests/${requestId}/${action}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Xử lý yêu cầu thay đổi/hủy thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      action === 'approve'
+        ? `Đã phê duyệt yêu cầu ${body.changeRequest.code} -> Dự án ở trạng thái ${body.project.status}!`
+        : `Đã từ chối yêu cầu ${body.code} (REJECTED).`,
+    );
+    setCrDecisionNote('');
+    await loadData();
+  };
+
   return (
     <div style={{ maxWidth: 980, margin: '32px auto', padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Bảng điều khiển Lab Admin — Xét duyệt & Công bố Dự án (REQ-LAB-01)</h1>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <h1>
+          Bảng điều khiển Lab Admin — Xét duyệt, Công bố & Đổi phạm vi / Hủy
+          (REQ-LAB-01 & REQ-LAB-02)
+        </h1>
         <button onClick={logout} style={{ padding: '6px 12px' }}>
           Đăng xuất ({user?.email})
         </button>
       </div>
 
       {statusMsg && (
-        <div style={{ padding: 10, background: '#dcfce7', color: '#166534', marginBottom: 12 }}>
+        <div
+          style={{
+            padding: 10,
+            background: '#dcfce7',
+            color: '#166534',
+            marginBottom: 12,
+          }}
+        >
           {statusMsg}
         </div>
       )}
       {errorMsg && (
-        <div style={{ padding: 10, background: '#fee2e2', color: '#991b1b', marginBottom: 12 }}>
+        <div
+          style={{
+            padding: 10,
+            background: '#fee2e2',
+            color: '#991b1b',
+            marginBottom: 12,
+          }}
+        >
           {errorMsg}
         </div>
       )}
@@ -242,8 +343,9 @@ export const LabReviewQueuePage: React.FC = () => {
             }}
           >
             <div>
-              <strong>{ent.companyName}</strong> — MST: {ent.taxCode} ({ent.industry}) | Đại diện:{' '}
-              {ent.representativeName} ({ent.contactEmail})
+              <strong>{ent.companyName}</strong> — MST: {ent.taxCode} (
+              {ent.industry}) | Đại diện: {ent.representativeName} (
+              {ent.contactEmail})
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <span>
@@ -262,9 +364,18 @@ export const LabReviewQueuePage: React.FC = () => {
         ))}
       </section>
 
-      <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>2. Hàng đợi Xét duyệt Đề xuất & Điều khiển Công bố Dự án ({proposals.length})</h3>
+      <section style={{ marginBottom: 28 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <h3>
+            2. Hàng đợi Xét duyệt Đề xuất & Điều khiển Vòng đời Dự án (
+            {proposals.length})
+          </h3>
           <label>
             Lọc trạng thái:{' '}
             <select
@@ -273,11 +384,23 @@ export const LabReviewQueuePage: React.FC = () => {
               style={{ padding: 6 }}
             >
               <option value="">Tất cả trạng thái</option>
-              <option value={ProjectStatus.SUBMITTED}>SUBMITTED (Chờ xét duyệt)</option>
-              <option value={ProjectStatus.CHANGES_REQUESTED}>CHANGES_REQUESTED</option>
-              <option value={ProjectStatus.APPROVED}>APPROVED (Chờ công bố)</option>
-              <option value={ProjectStatus.PUBLISHED}>PUBLISHED (Đang mở đơn)</option>
-              <option value={ProjectStatus.RECRUITMENT_CLOSED}>RECRUITMENT_CLOSED</option>
+              <option value={ProjectStatus.SUBMITTED}>
+                SUBMITTED (Chờ xét duyệt)
+              </option>
+              <option value={ProjectStatus.CHANGES_REQUESTED}>
+                CHANGES_REQUESTED
+              </option>
+              <option value={ProjectStatus.APPROVED}>
+                APPROVED (Chờ công bố)
+              </option>
+              <option value={ProjectStatus.PUBLISHED}>
+                PUBLISHED (Đang mở đơn)
+              </option>
+              <option value={ProjectStatus.RECRUITMENT_CLOSED}>
+                RECRUITMENT_CLOSED
+              </option>
+              <option value={ProjectStatus.IN_PROGRESS}>IN_PROGRESS</option>
+              <option value={ProjectStatus.CANCELLED}>CANCELLED</option>
               <option value={ProjectStatus.REJECTED}>REJECTED</option>
             </select>
           </label>
@@ -316,12 +439,15 @@ export const LabReviewQueuePage: React.FC = () => {
               <option value={ProposalRejectionReasonCode.UNVERIFIED_ENTERPRISE}>
                 UNVERIFIED_ENTERPRISE (Chưa xác minh DN)
               </option>
-              <option value={ProposalRejectionReasonCode.OTHER}>OTHER (Lý do khác)</option>
+              <option value={ProposalRejectionReasonCode.OTHER}>
+                OTHER (Lý do khác)
+              </option>
             </select>
           </label>
 
           <label>
-            Ghi chú xét duyệt / Lý do phản hồi (Tối thiểu 15 ký tự khi Reject / Request Info)
+            Ghi chú xét duyệt / Lý do phản hồi (Tối thiểu 15 ký tự khi Reject /
+            Request Info)
             <input
               type="text"
               placeholder="Nhập ghi chú xét duyệt hoặc lý do yêu cầu bổ sung / từ chối..."
@@ -362,8 +488,9 @@ export const LabReviewQueuePage: React.FC = () => {
             </div>
             <p style={{ margin: '6px 0' }}>{item.summary}</p>
             <p style={{ margin: '4px 0', fontSize: 14 }}>
-              Deliverables: {item.deliverables} | Kỹ năng: {item.requiredSkills.join(', ')} | Ngân
-              sách: {item.budgetAmount.toLocaleString('vi-VN')} VNĐ
+              Deliverables: {item.deliverables} | Kỹ năng:{' '}
+              {item.requiredSkills.join(', ')} | Thời lượng: {item.durationWeeks}{' '}
+              tuần | Ngân sách: {item.budgetAmount.toLocaleString('vi-VN')} VNĐ
             </p>
             {item.reviewNote && (
               <p style={{ color: '#0369a1', fontSize: 14 }}>
@@ -381,7 +508,9 @@ export const LabReviewQueuePage: React.FC = () => {
                     Phê duyệt (Approve)
                   </button>
                   <button
-                    onClick={() => handleDecisionWithReason(item.id, 'request-info')}
+                    onClick={() =>
+                      handleDecisionWithReason(item.id, 'request-info')
+                    }
                     style={{ padding: '6px 12px' }}
                   >
                     Yêu cầu bổ sung (Request Info)
@@ -396,7 +525,8 @@ export const LabReviewQueuePage: React.FC = () => {
               )}
 
               {(item.status === ProjectStatus.APPROVED ||
-                item.status === ProjectStatus.UNPUBLISHED) && (
+                item.status === ProjectStatus.UNPUBLISHED ||
+                item.status === ProjectStatus.RECRUITMENT_CLOSED) && (
                 <button
                   onClick={() => handlePublishProject(item.id)}
                   style={{ padding: '6px 12px', fontWeight: 600 }}
@@ -414,14 +544,116 @@ export const LabReviewQueuePage: React.FC = () => {
                     Tạm ẩn (Unpublish)
                   </button>
                   <button
-                    onClick={() => handleLifecycleControl(item.id, 'close-recruitment')}
+                    onClick={() =>
+                      handleLifecycleControl(item.id, 'close-recruitment')
+                    }
                     style={{ padding: '6px 12px', fontWeight: 600 }}
                   >
                     Đóng nhận đơn (Close Recruitment)
                   </button>
                 </>
               )}
+
+              {(item.status === ProjectStatus.PUBLISHED ||
+                item.status === ProjectStatus.RECRUITMENT_CLOSED) && (
+                <button
+                  onClick={() =>
+                    handleLifecycleControl(item.id, 'start-progress')
+                  }
+                  style={{ padding: '6px 12px', fontWeight: 600 }}
+                >
+                  Bắt đầu triển khai (IN_PROGRESS)
+                </button>
+              )}
             </div>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h3>
+          3. Hàng đợi Phê duyệt Đổi phạm vi (SCOPE_CHANGE) & Hủy dự án (CANCEL)
+          — Ngày D11 ({changeRequests.length})
+        </h3>
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Nhập ghi chú phê duyệt hoặc lý do từ chối yêu cầu thay đổi/hủy (tối thiểu 10 ký tự khi từ chối)..."
+            value={crDecisionNote}
+            onChange={(e) => setCrDecisionNote(e.target.value)}
+            style={{ width: '100%', padding: 8 }}
+          />
+        </div>
+
+        {changeRequests.map((cr) => (
+          <div
+            key={cr.id}
+            style={{
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: 16,
+              marginBottom: 12,
+              background: '#f8fafc',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <strong>
+                [{cr.code}] Dự án [{cr.projectCode}] {cr.projectTitle} — Loại:{' '}
+                {cr.requestType}
+              </strong>
+              <span>
+                Trạng thái: <strong>{cr.status}</strong>
+              </span>
+            </div>
+            <p style={{ margin: '6px 0', fontSize: 14 }}>
+              Doanh nghiệp: <strong>{cr.companyName}</strong> | Lý do:{' '}
+              {cr.reason}
+            </p>
+            <p style={{ margin: '4px 0', fontSize: 14 }}>
+              Đánh giá tác động: {cr.impactSummary}
+            </p>
+            {cr.requestType === 'SCOPE_CHANGE' && (
+              <p style={{ margin: '4px 0', fontSize: 14, color: '#0f172a' }}>
+                Đề xuất điều chỉnh: Deliverables={' '}
+                <strong>{cr.proposedDeliverables || 'Giữ nguyên'}</strong> | Ngân
+                sách mới:{' '}
+                <strong>
+                  {cr.proposedBudgetAmount
+                    ? `${cr.proposedBudgetAmount.toLocaleString('vi-VN')} VNĐ`
+                    : 'Giữ nguyên'}
+                </strong>{' '}
+                | Thời lượng mới:{' '}
+                <strong>
+                  {cr.proposedDurationWeeks
+                    ? `${cr.proposedDurationWeeks} tuần`
+                    : 'Giữ nguyên'}
+                </strong>
+              </p>
+            )}
+            {cr.reviewNote && (
+              <p style={{ margin: '4px 0', fontSize: 14, color: '#0369a1' }}>
+                Phản hồi của Lab: {cr.reviewNote}{' '}
+                {cr.financialSettlementNote
+                  ? `| Quyết toán: ${cr.financialSettlementNote}`
+                  : ''}
+              </p>
+            )}
+            {cr.status === 'PENDING_APPROVAL' && (
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button
+                  onClick={() => handleChangeRequestDecision(cr.id, 'approve')}
+                  style={{ padding: '6px 12px', fontWeight: 600 }}
+                >
+                  Phê duyệt Yêu cầu (Approve)
+                </button>
+                <button
+                  onClick={() => handleChangeRequestDecision(cr.id, 'reject')}
+                  style={{ padding: '6px 12px', color: '#991b1b' }}
+                >
+                  Từ chối Yêu cầu (Reject)
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </section>

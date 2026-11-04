@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, Roles, RolesGuard } from '../common/guards/roles.guard';
 import { ProjectsService } from './projects.service';
 import {
+  CreateProjectChangeRequestDto,
   CreateProjectProposalDto,
   UpdateProjectProposalDto,
 } from './project-proposal.types';
@@ -95,5 +96,48 @@ export class ProjectsController {
     @Param('id') id: string,
   ) {
     return this.projectsService.submitProposal(user, id);
+  }
+
+  /**
+   * REQ-ENT-03 (Ngày D11): Doanh nghiệp gửi yêu cầu Đổi phạm vi (SCOPE_CHANGE) hoặc Hủy dự án (CANCEL)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ENTERPRISE)
+  @Post(':id/change-requests')
+  @HttpCode(HttpStatus.CREATED)
+  createChangeRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') projectId: string,
+    @Body() dto: CreateProjectChangeRequestDto,
+  ) {
+    return this.projectsService.createChangeRequest(user, projectId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ENTERPRISE)
+  @Get('change-requests/me')
+  listMyChangeRequests(@CurrentUser() user: JwtPayload) {
+    return this.projectsService.listMyChangeRequests(user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ENTERPRISE, UserRole.LAB_ADMIN, UserRole.SYSTEM_ADMIN)
+  @Get(':id/change-requests')
+  listProjectChangeRequests(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') projectId: string,
+  ) {
+    return this.projectsService.listProjectChangeRequests(user, projectId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ENTERPRISE)
+  @Post('change-requests/:requestId/withdraw')
+  @HttpCode(HttpStatus.OK)
+  withdrawChangeRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.projectsService.withdrawChangeRequest(user, requestId);
   }
 }
