@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ProjectStatus, UserRole } from '@labodc/shared-types';
 import {
+  ChangeRequestStatus,
+  CreateProjectChangeRequestDto,
   CreateProjectProposalDto,
   ProjectAuditLogEntity,
+  ProjectChangeRequestEntity,
   ProjectProposalEntity,
   UpdateProjectProposalDto,
 } from './project-proposal.types';
@@ -14,8 +17,13 @@ export class ProjectProposalRepository {
     string,
     ProjectAuditLogEntity[]
   >();
+  private readonly changeRequestsById = new Map<
+    string,
+    ProjectChangeRequestEntity
+  >();
   private sequence = 1;
   private auditSequence = 1;
+  private changeRequestSequence = 1;
 
   createDraft(params: {
     ownerUserId: string;
@@ -186,10 +194,98 @@ export class ProjectProposalRepository {
     return this.auditLogsByProjectId.get(projectId) ?? [];
   }
 
+  createChangeRequest(params: {
+    project: ProjectProposalEntity;
+    enterpriseUserId: string;
+    dto: CreateProjectChangeRequestDto;
+  }): ProjectChangeRequestEntity {
+    const now = new Date().toISOString();
+    const seq = this.changeRequestSequence++;
+    const id = `cr-${seq}`;
+    const code = `CR-2026-${String(seq).padStart(3, '0')}`;
+
+    const entity: ProjectChangeRequestEntity = {
+      id,
+      code,
+      projectId: params.project.id,
+      projectCode: params.project.code,
+      projectTitle: params.project.title,
+      companyName: params.project.companyName,
+      enterpriseUserId: params.enterpriseUserId,
+      requestType: params.dto.requestType,
+      status: ChangeRequestStatus.PENDING_APPROVAL,
+      reason: params.dto.reason.trim(),
+      impactSummary: params.dto.impactSummary.trim(),
+      proposedDeliverables: params.dto.proposedDeliverables?.trim() || null,
+      proposedBudgetAmount:
+        params.dto.proposedBudgetAmount !== undefined
+          ? params.dto.proposedBudgetAmount
+          : null,
+      proposedDurationWeeks:
+        params.dto.proposedDurationWeeks !== undefined
+          ? params.dto.proposedDurationWeeks
+          : null,
+      proposedMaxTeamSize:
+        params.dto.proposedMaxTeamSize !== undefined
+          ? params.dto.proposedMaxTeamSize
+          : null,
+      financialSettlementNote: null,
+      reviewedBy: null,
+      reviewNote: null,
+      reviewedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.changeRequestsById.set(id, entity);
+    return entity;
+  }
+
+  findChangeRequestById(id: string): ProjectChangeRequestEntity | null {
+    return this.changeRequestsById.get(id) ?? null;
+  }
+
+  findChangeRequestsByProjectId(
+    projectId: string,
+  ): ProjectChangeRequestEntity[] {
+    return Array.from(this.changeRequestsById.values()).filter(
+      (cr) => cr.projectId === projectId,
+    );
+  }
+
+  findChangeRequestsByOwner(
+    enterpriseUserId: string,
+  ): ProjectChangeRequestEntity[] {
+    return Array.from(this.changeRequestsById.values()).filter(
+      (cr) => cr.enterpriseUserId === enterpriseUserId,
+    );
+  }
+
+  findAllChangeRequests(
+    statusFilter?: ChangeRequestStatus,
+  ): ProjectChangeRequestEntity[] {
+    const all = Array.from(this.changeRequestsById.values());
+    if (!statusFilter) return all;
+    return all.filter((cr) => cr.status === statusFilter);
+  }
+
+  saveChangeRequest(
+    entity: ProjectChangeRequestEntity,
+  ): ProjectChangeRequestEntity {
+    const updated: ProjectChangeRequestEntity = {
+      ...entity,
+      updatedAt: new Date().toISOString(),
+    };
+    this.changeRequestsById.set(updated.id, updated);
+    return updated;
+  }
+
   clearAll(): void {
     this.proposalsById.clear();
     this.auditLogsByProjectId.clear();
+    this.changeRequestsById.clear();
     this.sequence = 1;
     this.auditSequence = 1;
+    this.changeRequestSequence = 1;
   }
 }

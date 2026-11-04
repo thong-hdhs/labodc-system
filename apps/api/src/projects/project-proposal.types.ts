@@ -4,6 +4,18 @@ import {
   UserRole,
 } from '@labodc/shared-types';
 
+export enum ChangeRequestType {
+  SCOPE_CHANGE = 'SCOPE_CHANGE',
+  CANCEL = 'CANCEL',
+}
+
+export enum ChangeRequestStatus {
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  WITHDRAWN = 'WITHDRAWN',
+}
+
 export interface ProjectAuditLogEntity {
   id: string;
   projectId: string;
@@ -71,4 +83,38 @@ export interface UpdateProjectProposalDto {
   durationWeeks?: number;
   budgetAmount?: number;
   attachmentUrl?: string;
+}
+
+export interface ProjectChangeRequestEntity {
+  id: string;
+  code: string;
+  projectId: string;
+  projectCode: string;
+  projectTitle: string;
+  companyName: string;
+  enterpriseUserId: string;
+  requestType: ChangeRequestType;
+  status: ChangeRequestStatus;
+  reason: string;
+  impactSummary: string;
+  proposedDeliverables?: string | null;
+  proposedBudgetAmount?: number | null;
+  proposedDurationWeeks?: number | null;
+  proposedMaxTeamSize?: number | null;
+  financialSettlementNote?: string | null;
+  reviewedBy?: string | null;
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProjectChangeRequestDto {
+  requestType: ChangeRequestType;
+  reason: string;
+  impactSummary: string;
+  proposedDeliverables?: string;
+  proposedBudgetAmount?: number;
+  proposedDurationWeeks?: number;
+  proposedMaxTeamSize?: number;
 }

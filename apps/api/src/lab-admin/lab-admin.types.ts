@@ -18,3 +18,12 @@ export interface PublishProjectDto {
 export interface LifecycleNoteDto {
   note?: string;
 }
+
+export interface ApproveChangeRequestDto {
+  reviewNote?: string;
+  financialSettlementNote?: string;
+}
+
+export interface RejectChangeRequestDto {
+  reviewNote: string;
+}
