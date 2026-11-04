@@ -41,9 +41,20 @@ interface MentorApplication {
   requiresInterview: boolean;
 }
 
+type MentorInvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+interface MentorInvitation {
+  id: string;
+  status: MentorInvitationStatus;
+  createdAt: string;
+  respondedAt: string | null;
+  project: { title: string; code: string };
+}
+
 export const MentorApplicationsPage: React.FC = () => {
   const { accessToken, logout, user } = useAuth();
   const [applications, setApplications] = useState<MentorApplication[]>([]);
+  const [invitations, setInvitations] = useState<MentorInvitation[]>([]);
   const [interviewOutcomes, setInterviewOutcomes] = useState<
     Record<string, 'PASS' | 'FAIL'>
   >({});
@@ -80,9 +91,59 @@ export const MentorApplicationsPage: React.FC = () => {
     }
   }, [accessToken]);
 
+  const loadInvitations = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const response = await fetch(
+        'http://localhost:3000/api/v1/mentor/me/invitations',
+        { headers: { Authorization: 'Bearer ' + accessToken } },
+      );
+      if (!response.ok) throw new Error(await readError(response));
+      setInvitations((await response.json()) as MentorInvitation[]);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Không thể tải thông báo lời mời Mentor.',
+      );
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     void loadApplications();
-  }, [loadApplications]);
+    void loadInvitations();
+  }, [loadApplications, loadInvitations]);
+
+  const respondToInvitation = async (
+    invitationId: string,
+    response: 'accept' | 'decline',
+  ) => {
+    if (!accessToken) return;
+    setError('');
+    setNotice('');
+    try {
+      const result = await fetch(
+        `http://localhost:3000/api/v1/mentor/me/invitations/${encodeURIComponent(invitationId)}/${response}`,
+        {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + accessToken },
+        },
+      );
+      if (!result.ok) throw new Error(await readError(result));
+      setNotice(
+        response === 'accept'
+          ? 'Bạn đã chấp nhận lời mời và được phân công phụ trách dự án.'
+          : 'Bạn đã từ chối lời mời. Dự án hiện chưa có Mentor phụ trách.',
+      );
+      await Promise.all([loadApplications(), loadInvitations()]);
+    } catch (responseError) {
+      setError(
+        responseError instanceof Error
+          ? responseError.message
+          : 'Không thể phản hồi lời mời Mentor.',
+      );
+    }
+  };
 
   const performAction = async (
     applicationId: string,
@@ -139,7 +200,14 @@ export const MentorApplicationsPage: React.FC = () => {
           <p>Mentor: {user?.fullName ?? user?.email}</p>
         </div>
         <div className="mentor-applications-actions">
-          <button type="button" onClick={() => void loadApplications()} disabled={loading}>
+          <button
+            type="button"
+            onClick={() => {
+              void loadApplications();
+              void loadInvitations();
+            }}
+            disabled={loading}
+          >
             Làm mới
           </button>
           <button type="button" onClick={logout}>
@@ -150,6 +218,50 @@ export const MentorApplicationsPage: React.FC = () => {
 
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      <section aria-labelledby="mentor-invitations-heading">
+        <h2 id="mentor-invitations-heading">
+          Lời mời phụ trách dự án ({invitations.filter((item) => item.status === 'PENDING').length} đang chờ)
+        </h2>
+        {invitations.length === 0 ? (
+          <p>Hộp thư lời mời hiện chưa có thông báo.</p>
+        ) : (
+          <ul className="mentor-application-list">
+            {invitations.map((invitation) => (
+              <li key={invitation.id} className="mentor-application-card">
+                <h3>
+                  [{invitation.project.code}] {invitation.project.title}
+                </h3>
+                <p>
+                  Trạng thái lời mời: <strong>{invitation.status}</strong>
+                </p>
+                <p>
+                  Nhận lúc: {new Date(invitation.createdAt).toLocaleString('vi-VN')}
+                </p>
+                {invitation.status === 'PENDING' && (
+                  <div className="mentor-decision-actions">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void respondToInvitation(invitation.id, 'accept')
+                      }
+                    >
+                      Chấp nhận
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void respondToInvitation(invitation.id, 'decline')
+                      }
+                    >
+                      Từ chối
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       {loading ? (
         <p role="status">Đang tải đơn ứng tuyển...</p>
       ) : applications.length === 0 ? (

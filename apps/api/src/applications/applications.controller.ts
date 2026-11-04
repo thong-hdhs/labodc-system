@@ -13,8 +13,8 @@ import { CurrentUser, Roles, RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ApplicationsService } from './applications.service';
 import {
-  AssignMentorDto,
   DecideApplicationDto,
+  InviteMentorDto,
   RecordInterviewResultDto,
 } from './application.types';
 
@@ -49,14 +49,48 @@ export class ApplicationsController {
     return this.applicationsService.withdraw(user, applicationId);
   }
 
-  @Post('lab-admin/projects/:projectId/mentor-assignment')
+  @Post('lab-admin/projects/:projectId/mentor-invitations')
   @Roles(UserRole.LAB_ADMIN, UserRole.SYSTEM_ADMIN)
-  assignMentor(
+  inviteMentor(
     @CurrentUser() user: JwtPayload,
     @Param('projectId') projectId: string,
-    @Body() input: AssignMentorDto,
+    @Body() input: InviteMentorDto,
   ) {
-    return this.applicationsService.assignMentor(user, projectId, input);
+    return this.applicationsService.inviteMentor(user, projectId, input);
+  }
+
+  @Get('mentor/me/invitations')
+  @Roles(UserRole.MENTOR)
+  listMentorInvitations(@CurrentUser() user: JwtPayload) {
+    return this.applicationsService.listMentorInvitations(user);
+  }
+
+  @Post('mentor/me/invitations/:invitationId/accept')
+  @Roles(UserRole.MENTOR)
+  @HttpCode(HttpStatus.OK)
+  acceptMentorInvitation(
+    @CurrentUser() user: JwtPayload,
+    @Param('invitationId') invitationId: string,
+  ) {
+    return this.applicationsService.respondToMentorInvitation(
+      user,
+      invitationId,
+      true,
+    );
+  }
+
+  @Post('mentor/me/invitations/:invitationId/decline')
+  @Roles(UserRole.MENTOR)
+  @HttpCode(HttpStatus.OK)
+  declineMentorInvitation(
+    @CurrentUser() user: JwtPayload,
+    @Param('invitationId') invitationId: string,
+  ) {
+    return this.applicationsService.respondToMentorInvitation(
+      user,
+      invitationId,
+      false,
+    );
   }
 
   @Get('mentor/me/applications')

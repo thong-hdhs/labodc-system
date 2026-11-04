@@ -28,10 +28,26 @@ export class MentorAssignmentRepository {
       assignedAt: new Date().toISOString(),
     };
     const history = this.historyByProject.get(projectId) ?? [];
-    history.push({ ...assignment, id: randomUUID() });
+    history.push({ ...assignment, id: randomUUID(), action: 'ASSIGNED' });
     this.historyByProject.set(projectId, history);
     this.currentByProject.set(projectId, assignment);
     return assignment;
+  }
+
+  unassign(projectId: string, unassignedBy: string): void {
+    const existing = this.currentByProject.get(projectId);
+    if (!existing) return;
+
+    const history = this.historyByProject.get(projectId) ?? [];
+    history.push({
+      ...existing,
+      id: randomUUID(),
+      action: 'UNASSIGNED',
+      assignedBy: unassignedBy,
+      assignedAt: new Date().toISOString(),
+    });
+    this.historyByProject.set(projectId, history);
+    this.currentByProject.delete(projectId);
   }
 
   findByProject(projectId: string): MentorProjectAssignment | null {

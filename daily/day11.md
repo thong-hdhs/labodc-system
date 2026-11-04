@@ -10,7 +10,7 @@
 
 | Chủ đề | Quyết định |
 |---|---|
-| Mentor assignment | Mỗi project có **một Mentor phụ trách chính tại một thời điểm**. Lab Admin/System Admin gán hoặc đổi Mentor qua API; lịch sử assignment lưu lại. Chỉ Mentor hiện tại được gán mới xem/xử lý đơn. |
+| Mentor assignment | Mỗi project có **một Mentor phụ trách chính tại một thời điểm**. Từ D12, Lab Admin/System Admin mời Mentor; chỉ sau khi chấp nhận mới cấp assignment. Chỉ Mentor hiện tại được gán mới xem/xử lý đơn. |
 | Cấu hình phỏng vấn | Doanh nghiệp chọn `requiresInterview` trong proposal draft. Mặc định `false`; field được giữ trong Project public read contract. |
 | Phạm vi interview | Không lập lịch hoặc lưu link/địa điểm. Mentor ghi kết quả `PASS`/`FAIL` và ghi chú nội bộ, không có điểm rubric ở D11. |
 | State và quyết định | `SUBMITTED -> UNDER_REVIEW`; project yêu cầu interview thì bắt buộc ghi kết quả để chuyển `INTERVIEW` trước `ACCEPTED`/`REJECTED`. Nếu không yêu cầu, Mentor quyết định từ `UNDER_REVIEW`. Mentor là người quyết định cuối theo project assignment. |
@@ -22,7 +22,7 @@ Chi tiết tiêu chí định tính có thể được PO/Mentor bổ sung sau; 
 
 | Hạng mục | Kết quả | Tệp chính |
 |---|---|---|
-| Gán Mentor chính | Lab Admin/System Admin gán Mentor active cho project đã `PUBLISHED`, `RECRUITMENT_CLOSED` hoặc `IN_PROGRESS`; thay assignment tạo lịch sử. Tài khoản không phải Mentor bị từ chối. | `apps/api/src/applications/mentor-assignment.repository.ts`, `applications.service.ts`, `applications.controller.ts` |
+| Gán Mentor chính | Chính sách một Mentor chính/project; từ D12, Lab Admin/System Admin mời Mentor active và chỉ ghi assignment sau khi Mentor chấp nhận. | `apps/api/src/applications/mentor-assignment.repository.ts`, `mentor-invitation.repository.ts`, `applications.service.ts`, `applications.controller.ts` |
 | Hàng đợi Mentor | Mentor chỉ nhận applications thuộc project đang được gán; trả profile candidate cần cho review cùng state/review history. | `GET /api/v1/mentor/me/applications` |
 | State review và decision | Bắt đầu review, ghi interview result nếu project yêu cầu, quyết định `ACCEPTED`/`REJECTED` theo state hợp lệ. | `POST /api/v1/mentor/applications/:id/start-review`, `interview-result`, `decision` |
 | Ghi chú nội bộ | Lưu review events tách khỏi candidate state history; giới hạn ghi chú 2.000 ký tự; API Candidate không trả nội dung. | `application.repository.ts`, `application_review_events` trong migration draft |
@@ -33,13 +33,13 @@ Chi tiết tiêu chí định tính có thể được PO/Mentor bổ sung sau; 
 
 | Method / endpoint | Quyền | Hành vi |
 |---|---|---|
-| `POST /api/v1/lab-admin/projects/:projectId/mentor-assignment` | `LAB_ADMIN`, `SYSTEM_ADMIN` | Body `{ "mentorUserId": "<user-id>" }`; gán/đổi primary Mentor, trả assignment và lịch sử. |
+| `POST /api/v1/lab-admin/projects/:projectId/mentor-invitations` | `LAB_ADMIN`, `SYSTEM_ADMIN` | Endpoint D12 thay thế gán trực tiếp: gửi lời mời; assignment chỉ có sau khi Mentor accept. Chi tiết tại [day12.md](./day12.md). |
 | `GET /api/v1/mentor/me/applications` | `MENTOR` đã đăng nhập | Trả đơn thuộc các project hiện được gán; mỗi item có candidate profile scoped và review events nội bộ. |
 | `POST /api/v1/mentor/applications/:applicationId/start-review` | Mentor đang được gán | Chỉ `SUBMITTED -> UNDER_REVIEW`. |
 | `POST /api/v1/mentor/applications/:applicationId/interview-result` | Mentor đang được gán | Chỉ khi `requiresInterview=true` và state `UNDER_REVIEW`; body `{ "outcome": "PASS|FAIL", "internalNote": "..." }`; chuyển sang `INTERVIEW`. |
 | `POST /api/v1/mentor/applications/:applicationId/decision` | Mentor đang được gán | Body `{ "status": "ACCEPTED|REJECTED", "internalNote": "..." }`; state phải là `INTERVIEW` nếu project yêu cầu interview, nếu không phải `UNDER_REVIEW`. |
 
-Endpoint assignment kiểm tra project tồn tại/trạng thái và xác minh target user là Mentor active qua Auth service. Assignment hiện không có Lab Admin UI; gán qua API. Mentor invitation/accept/decline thuộc D12.
+Luồng phân công được nâng cấp ở D12 thành invitation/accept/decline qua API; chi tiết tại [day12.md](./day12.md). Chưa có Lab Admin invite UI.
 
 ### Schema/migration
 
@@ -67,8 +67,7 @@ Lần xác minh đầy đủ sau thay đổi D11: API **14/14 suites, 38/38 test
 - [x] B-side Mentor review/interview/decision API và route UI được tích hợp.
 - [x] Assignment một primary Mentor, thay assignment có history; role và project scope được kiểm tra server-side.
 - [x] Candidate profile/review data chỉ trả cho Mentor đang phụ trách; private notes không xuất hiện trong Talent application endpoint.
-- [ ] Chưa có assignment UI cho Lab Admin; thao tác assignment dùng API.
-- [ ] Chưa có lịch phỏng vấn, rubric điểm số, Mentor invitation/accept lifecycle (D12), PostgreSQL persistence, migration execution hoặc staging.
+- [ ] Chưa có Lab Admin invite UI, lịch phỏng vấn, rubric điểm số, PostgreSQL persistence, migration execution hoặc staging. Mentor invitation/accept lifecycle được triển khai ở D12.
 
 ## Phần A — Yêu cầu đổi phạm vi/hủy dự án và phê duyệt Lab Admin
 
@@ -121,6 +120,6 @@ Lần xác minh đầy đủ sau thay đổi D11: API **14/14 suites, 38/38 test
 - [x] Assignment một primary Mentor, thay assignment có history; role và project scope được kiểm tra server-side.
 - [x] Candidate profile/review data chỉ trả cho Mentor đang phụ trách; private notes không xuất hiện trong Talent application endpoint.
 - [ ] Chưa có assignment UI cho Lab Admin; thao tác assignment dùng API.
-- [ ] Chưa có lịch phỏng vấn, rubric điểm số, Mentor invitation/accept lifecycle (D12), PostgreSQL persistence, migration execution hoặc staging.
+- [ ] Chưa có lịch phỏng vấn, rubric điểm số, PostgreSQL persistence, migration execution hoặc staging. Mentor invitation/accept lifecycle được bổ sung tại D12.
 
-**Kết luận D11:** Cả hai lát cắt D11 đã được gộp ở mức source/API/UI và test. Mentor review có E2E evidence; change/cancel tests được ghi nhận trong bộ test D11. Dữ liệu runtime hiện vẫn in-memory, các migration chưa chạy; do đó chưa nghiệm thu persistence PostgreSQL/staging. Mentor invitation/acceptance thuộc D12.
+**Kết luận D11:** Cả hai lát cắt D11 đã được gộp ở mức source/API/UI và test. Mentor review có E2E evidence; change/cancel tests được ghi nhận trong bộ test D11. Luồng invitation/acceptance được triển khai tiếp ở [day12.md](./day12.md). Dữ liệu runtime hiện vẫn in-memory, các migration chưa chạy; do đó chưa nghiệm thu persistence PostgreSQL/staging.

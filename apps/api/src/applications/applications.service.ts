@@ -11,16 +11,20 @@ import { ProjectsService } from '../projects/projects.service';
 import { TalentService } from '../talent/talent.service';
 import { ApplicationRepository } from './application.repository';
 import { MentorAssignmentRepository } from './mentor-assignment.repository';
+import { MentorInvitationRepository } from './mentor-invitation.repository';
 import {
   ApplicationEntity,
   ApplicationStatus,
   ApplicationWithProject,
-  AssignMentorDto,
   DecideApplicationDto,
   InterviewOutcome,
   MentorAssignmentHistoryEntity,
+  MentorInvitationEntity,
+  MentorInvitationStatus,
+  MentorInvitationWithProject,
   MentorApplication,
   MentorProjectAssignment,
+  InviteMentorDto,
   RecordInterviewResultDto,
   TERMINAL_APPLICATION_STATUSES,
 } from './application.types';
@@ -32,6 +36,7 @@ export class ApplicationsService {
     private readonly projects: ProjectsService,
     private readonly auth: AuthService,
     private readonly mentorAssignments: MentorAssignmentRepository,
+    private readonly mentorInvitations: MentorInvitationRepository,
     private readonly talent: TalentService,
   ) {}
 
@@ -83,26 +88,17 @@ export class ApplicationsService {
     return this.applications.withdraw(application, user.sub);
   }
 
-  assignMentor(
+  inviteMentor(
     actor: JwtPayload,
     projectId: string,
-    input: AssignMentorDto,
+    input: InviteMentorDto,
   ): {
-    assignment: MentorProjectAssignment;
+    invitation: MentorInvitationEntity;
+    currentAssignment: MentorProjectAssignment | null;
     history: MentorAssignmentHistoryEntity[];
   } {
     this.assertLabAdmin(actor);
-    const project = this.projects.getApplicationProjectSummary(projectId);
-    if (
-      project.status !== ProjectStatus.PUBLISHED &&
-      project.status !== ProjectStatus.RECRUITMENT_CLOSED &&
-      project.status !== ProjectStatus.IN_PROGRESS
-    ) {
-      throw new ConflictException({
-        code: 'PROJECT_NOT_READY_FOR_MENTOR_ASSIGNMENT',
-        message: 'Chỉ có thể gán Mentor cho dự án đã công bố hoặc đang triển khai.',
-      });
-    }
+    this.assertProjectAllowsMentorAssignment(projectId);
     if (!input || typeof input.mentorUserId !== 'string') {
       throw new BadRequestException('mentorUserId là bắt buộc.');
     }
@@ -116,14 +112,78 @@ export class ApplicationsService {
       throw new BadRequestException('Tài khoản được chọn không phải Mentor hợp lệ.');
     }
 
-    const assignment = this.mentorAssignments.assign(
+    const invitation = this.mentorInvitations.create(
       projectId,
       mentor.id,
       actor.sub,
     );
+    this.mentorAssignments.unassign(projectId, actor.sub);
     return {
-      assignment,
+      invitation,
+      currentAssignment: this.mentorAssignments.findByProject(projectId),
       history: this.mentorAssignments.getHistory(projectId),
+    };
+  }
+
+  listMentorInvitations(user: JwtPayload): MentorInvitationWithProject[] {
+    this.assertMentor(user);
+    return this.mentorInvitations.findByMentor(user.sub).map((invitation) => {
+      const project = this.projects.getApplicationProjectSummary(
+        invitation.projectId,
+      );
+      return {
+        ...invitation,
+        project: { code: project.code, title: project.title },
+      };
+    });
+  }
+
+  respondToMentorInvitation(
+    user: JwtPayload,
+    invitationId: string,
+    accept: boolean,
+  ): MentorInvitationWithProject {
+    this.assertMentor(user);
+    const invitation = this.mentorInvitations.findById(invitationId);
+    if (!invitation || invitation.mentorUserId !== user.sub) {
+      throw new NotFoundException('Không tìm thấy lời mời Mentor.');
+    }
+    if (invitation.status !== MentorInvitationStatus.PENDING) {
+      throw new ConflictException({
+        code: 'MENTOR_INVITATION_ALREADY_RESPONDED',
+        message: 'Lời mời này đã được phản hồi.',
+      });
+    }
+
+    const mentor = this.auth.findUserById(user.sub);
+    if (
+      !mentor ||
+      mentor.role !== UserRole.MENTOR ||
+      mentor.status !== UserStatus.ACTIVE
+    ) {
+      throw new ForbiddenException(
+        'Chỉ Mentor đang hoạt động mới được phản hồi lời mời.',
+      );
+    }
+
+    if (accept) {
+      this.assertProjectAllowsMentorAssignment(invitation.projectId);
+      this.mentorAssignments.assign(
+        invitation.projectId,
+        user.sub,
+        invitation.invitedBy,
+      );
+    }
+    const status = accept
+      ? MentorInvitationStatus.ACCEPTED
+      : MentorInvitationStatus.DECLINED;
+    const updated = this.mentorInvitations.respond(invitation, status);
+    const project = this.projects.getApplicationProjectSummary(
+      invitation.projectId,
+    );
+    return {
+      ...updated,
+      project: { code: project.code, title: project.title },
     };
   }
 
@@ -275,6 +335,20 @@ export class ApplicationsService {
       user.role !== UserRole.SYSTEM_ADMIN
     ) {
       throw new ForbiddenException('Chỉ Lab Admin mới được gán Mentor.');
+    }
+  }
+
+  private assertProjectAllowsMentorAssignment(projectId: string): void {
+    const project = this.projects.getApplicationProjectSummary(projectId);
+    if (
+      project.status !== ProjectStatus.PUBLISHED &&
+      project.status !== ProjectStatus.RECRUITMENT_CLOSED &&
+      project.status !== ProjectStatus.IN_PROGRESS
+    ) {
+      throw new ConflictException({
+        code: 'PROJECT_NOT_READY_FOR_MENTOR_ASSIGNMENT',
+        message: 'Chỉ có thể mời Mentor cho dự án đã công bố hoặc đang triển khai.',
+      });
     }
   }
 

@@ -38,6 +38,30 @@ export interface MentorProjectAssignment {
 
 export interface MentorAssignmentHistoryEntity extends MentorProjectAssignment {
   id: string;
+  action: 'ASSIGNED' | 'UNASSIGNED';
+}
+
+export enum MentorInvitationStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  DECLINED = 'DECLINED',
+}
+
+export interface MentorInvitationEntity {
+  id: string;
+  projectId: string;
+  mentorUserId: string;
+  invitedBy: string;
+  status: MentorInvitationStatus;
+  createdAt: string;
+  respondedAt: string | null;
+}
+
+export interface MentorInvitationWithProject extends MentorInvitationEntity {
+  project: {
+    code: string;
+    title: string;
+  };
 }
 
 export interface ApplicationReviewEvent {
@@ -50,7 +74,7 @@ export interface ApplicationReviewEvent {
   createdAt: string;
 }
 
-export interface AssignMentorDto {
+export interface InviteMentorDto {
   mentorUserId: string;
 }
 

@@ -7,6 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { ApplicationRepository } from '../src/applications/application.repository';
 import { MentorAssignmentRepository } from '../src/applications/mentor-assignment.repository';
+import { MentorInvitationRepository } from '../src/applications/mentor-invitation.repository';
 import {
   TALENT_PROFILE_REPOSITORY,
   TalentProfileRepository,
@@ -16,7 +17,7 @@ import {
   UpdateTalentProfileInput,
 } from '../src/talent/talent-profile.types';
 
-describe('Mentor application review (D11)', () => {
+describe('Mentor application review and invitations (D11-D12)', () => {
   let app: INestApplication;
   let enterpriseToken: string;
   let labAdminToken: string;
@@ -26,6 +27,7 @@ describe('Mentor application review (D11)', () => {
   let projectId: string;
   let applications: ApplicationRepository;
   let assignments: MentorAssignmentRepository;
+  let invitations: MentorInvitationRepository;
 
   const mentorUserId = '00000000-0000-4000-8000-000000000004';
   const password =
@@ -79,6 +81,7 @@ describe('Mentor application review (D11)', () => {
     await app.init();
     applications = moduleFixture.get(ApplicationRepository);
     assignments = moduleFixture.get(MentorAssignmentRepository);
+    invitations = moduleFixture.get(MentorInvitationRepository);
 
     const jwtService = moduleFixture.get(JwtService);
     unassignedMentorToken = await jwtService.signAsync(
@@ -129,29 +132,38 @@ describe('Mentor application review (D11)', () => {
   beforeEach(() => {
     applications.clearAll();
     assignments.clearAll();
+    invitations.clearAll();
   });
 
-  it('assigns the reviewer, enforces project scope, records interview result and keeps notes private', async () => {
+  it('invites the reviewer, enforces project scope, records interview result and keeps notes private', async () => {
     const applicationId = await submitApplication(projectId);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-assignment`)
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
       .set('Authorization', `Bearer ${labAdminToken}`)
       .send({ mentorUserId })
       .expect(201)
       .expect(({ body }) => {
-        expect(body.assignment.mentorUserId).toBe(mentorUserId);
-        expect(body.history).toHaveLength(1);
+        expect(body.invitation.mentorUserId).toBe(mentorUserId);
+        expect(body.invitation.status).toBe('PENDING');
+        expect(body.currentAssignment).toBeNull();
       });
 
+    const pending = invitations.findByMentor(mentorUserId)[0];
     await request(app.getHttpServer())
-      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-assignment`)
+      .post(`/api/v1/mentor/me/invitations/${pending.id}/accept`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(200);
+    expect(assignments.getHistory(projectId)).toHaveLength(1);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
       .set('Authorization', `Bearer ${talentToken}`)
       .send({ mentorUserId })
       .expect(403);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-assignment`)
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
       .set('Authorization', `Bearer ${labAdminToken}`)
       .send({ mentorUserId: '00000000-0000-4000-8000-000000000006' })
       .expect(400);
@@ -253,7 +265,7 @@ describe('Mentor application review (D11)', () => {
     );
     const applicationId = await submitApplication(noInterviewProjectId);
 
-    await assignMentor(noInterviewProjectId);
+    await inviteAndAcceptMentor(noInterviewProjectId);
 
     await request(app.getHttpServer())
       .post(`/api/v1/mentor/applications/${applicationId}/start-review`)
@@ -272,6 +284,80 @@ describe('Mentor application review (D11)', () => {
       .send({ status: 'REJECTED' })
       .expect(200);
     expect(decision.body.status).toBe('REJECTED');
+  });
+
+  it('creates an in-app invitation, revokes the current assignment, and handles decline/reinvite', async () => {
+    assignments.assign(
+      projectId,
+      mentorUserId,
+      '00000000-0000-4000-8000-000000000002',
+    );
+
+    const sent = await request(app.getHttpServer())
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
+      .set('Authorization', 'Bearer ' + labAdminToken)
+      .send({ mentorUserId })
+      .expect(201);
+    expect(sent.body.invitation.status).toBe('PENDING');
+    expect(sent.body.currentAssignment).toBeNull();
+    expect(assignments.getHistory(projectId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'UNASSIGNED' }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
+      .set('Authorization', `Bearer ${labAdminToken}`)
+      .send({ mentorUserId })
+      .expect(409);
+
+    const inbox = await request(app.getHttpServer())
+      .get('/api/v1/mentor/me/invitations')
+      .set('Authorization', 'Bearer ' + mentorToken)
+      .expect(200);
+    expect(inbox.body[0]).toEqual(
+      expect.objectContaining({
+        id: sent.body.invitation.id,
+        status: 'PENDING',
+        project: expect.objectContaining({ title: 'Dự án yêu cầu phỏng vấn' }),
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/api/v1/mentor/me/invitations')
+      .set('Authorization', 'Bearer ' + talentToken)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/me/invitations/${sent.body.invitation.id}/decline`,
+      )
+      .set('Authorization', 'Bearer ' + mentorToken)
+      .expect(200)
+      .expect(({ body }) => expect(body.status).toBe('DECLINED'));
+    expect(assignments.findByProject(projectId)).toBeNull();
+
+    const reinvited = await request(app.getHttpServer())
+      .post(`/api/v1/lab-admin/projects/${projectId}/mentor-invitations`)
+      .set('Authorization', 'Bearer ' + labAdminToken)
+      .send({ mentorUserId })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/me/invitations/${reinvited.body.invitation.id}/accept`,
+      )
+      .set('Authorization', 'Bearer ' + mentorToken)
+      .expect(200)
+      .expect(({ body }) => expect(body.status).toBe('ACCEPTED'));
+    expect(assignments.findByProject(projectId)?.mentorUserId).toBe(mentorUserId);
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/me/invitations/${reinvited.body.invitation.id}/accept`,
+      )
+      .set('Authorization', 'Bearer ' + mentorToken)
+      .expect(409);
   });
 
   afterAll(async () => {
@@ -339,11 +425,17 @@ describe('Mentor application review (D11)', () => {
     return response.body.id as string;
   }
 
-  async function assignMentor(id: string): Promise<void> {
-    await request(app.getHttpServer())
-      .post(`/api/v1/lab-admin/projects/${id}/mentor-assignment`)
+  async function inviteAndAcceptMentor(id: string): Promise<void> {
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/lab-admin/projects/${id}/mentor-invitations`)
       .set('Authorization', `Bearer ${labAdminToken}`)
       .send({ mentorUserId })
       .expect(201);
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/me/invitations/${response.body.invitation.id}/accept`,
+      )
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(200);
   }
 });
