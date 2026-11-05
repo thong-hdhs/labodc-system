@@ -23,9 +23,18 @@ interface MilestoneItem {
   description: string;
   amount: number;
   orderCode: number;
-  status: 'PLANNED' | 'ESCROW_PAID' | 'SUBMITTED' | 'ACCEPTED' | 'DISBURSED';
+  status:
+    | 'PLANNED'
+    | 'ESCROW_PAID'
+    | 'SUBMITTED'
+    | 'ACCEPTED'
+    | 'DISBURSED'
+    | 'REFUNDED';
   deliverableUrl?: string | null;
   deliverableNote?: string | null;
+  revisionCount?: number;
+  lastRevisionNote?: string | null;
+  refundReason?: string | null;
 }
 
 interface LedgerEntryItem {
@@ -52,6 +61,29 @@ interface ProjectLedgerResponse {
   ledgerEntries: LedgerEntryItem[];
 }
 
+interface GlobalReconciliationSummary {
+  totalMilestones: number;
+  milestonesByStatus: {
+    planned: number;
+    escrowPaid: number;
+    submitted: number;
+    disbursed: number;
+    refunded: number;
+  };
+  ledgerTotals: {
+    totalEscrowDeposited: number;
+    totalDisbursed702010: number;
+    totalTeam70: number;
+    totalMentor20: number;
+    totalLab10: number;
+    totalRemainderAbsorbedByLab: number;
+    totalRefundedToEnterprise: number;
+    totalEscrowHeldBalance: number;
+    currency: string;
+  };
+  invariantHold: boolean;
+}
+
 export const PayosSandboxSpikePage: React.FC = () => {
   const { user, accessToken, logout } = useAuth();
   const [orders, setOrders] = useState<PayosOrderItem[]>([]);
@@ -61,7 +93,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // State mở rộng cho Ngày D12 (Cột mốc Ký quỹ & Sổ cái 70/20/10)
+  // State của Ngày D12 (Cột mốc Ký quỹ & Sổ cái 70/20/10)
   const [milestoneDesc, setMilestoneDesc] = useState(
     'Hoàn thành bàn giao gói sản phẩm và tài liệu nghiệm thu cột mốc.',
   );
@@ -74,6 +106,13 @@ export const PayosSandboxSpikePage: React.FC = () => {
   const [ledgerData, setLedgerData] = useState<ProjectLedgerResponse | null>(
     null,
   );
+
+  // State mở rộng cho Ngày D13 (Yêu cầu sửa lại bàn giao, Hoàn trả ký quỹ & Đối soát toàn cục)
+  const [revisionOrRefundNote, setRevisionOrRefundNote] = useState(
+    'Bổ sung tài liệu hướng dẫn cài đặt hoặc hoàn trả ký quỹ do điều chỉnh kế hoạch.',
+  );
+  const [reconciliationSummary, setReconciliationSummary] =
+    useState<GlobalReconciliationSummary | null>(null);
 
   const loadOrders = async () => {
     if (!accessToken) return;
@@ -98,9 +137,23 @@ export const PayosSandboxSpikePage: React.FC = () => {
     }
   };
 
+  const loadGlobalReconciliation = async () => {
+    if (!accessToken) return;
+    const res = await fetch(
+      'http://localhost:3000/api/v1/payments/reconciliation/summary',
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (res.ok) {
+      setReconciliationSummary(await res.json());
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     loadProjectLedger();
+    loadGlobalReconciliation();
   }, [accessToken]);
 
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -191,6 +244,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
 
     setStatusMsg(`Đã khởi tạo cột mốc ký quỹ "${body.title}" (${body.id})!`);
     await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
   };
 
   const handleConfirmEscrow = async (milestoneId: string) => {
@@ -221,6 +275,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
       `Đã xác nhận ký quỹ cột mốc ${milestoneId} (ESCROW_PAID) — Trạng thái dự án: ${body.projectStatus}!`,
     );
     await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
   };
 
   const handleSubmitDeliverable = async (milestoneId: string) => {
@@ -250,6 +305,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
 
     setStatusMsg(`Đã nộp bàn giao cho cột mốc ${milestoneId} (SUBMITTED)!`);
     await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
   };
 
   const handleAcceptAndSplit = async (
@@ -284,6 +340,97 @@ export const PayosSandboxSpikePage: React.FC = () => {
       `Đã nghiệm thu & chia doanh thu 70/20/10 cho cột mốc ${milestoneId} (70% SV: ${body.splitBreakdown.teamAmount70.toLocaleString('vi-VN')} VNĐ | 20% Mentor: ${body.splitBreakdown.mentorAmount20.toLocaleString('vi-VN')} VNĐ | 10% Lab: ${body.splitBreakdown.labAmount10.toLocaleString('vi-VN')} VNĐ) — Dự án: ${body.projectStatus}!`,
     );
     await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
+  };
+
+  // Các hàm xử lý nghiệp vụ Ngày D13 (Đồng bộ Webhook vào Sổ cái, Yêu cầu sửa bàn giao & Hoàn trả ký quỹ)
+  const handleSyncPayosWebhookToMilestone = async (milestoneId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/sync-payos-webhook`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ reference: 'FT-WEBHOOK-D13' }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Đồng bộ PayOS Webhook thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      body.idempotentReplay
+        ? `Đối soát PayOS Webhook cho cột mốc ${milestoneId}: Idempotent Replay = true (Không cộng tiền trùng vào Sổ cái)!`
+        : `Đã đối soát tự động PayOS Webhook HMAC cho cột mốc ${milestoneId} -> ESCROW_PAID!`,
+    );
+    await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
+  };
+
+  const handleRequestRevision = async (milestoneId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/request-revision`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ revisionNote: revisionOrRefundNote }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Yêu cầu chỉnh sửa bàn giao thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      `Đã yêu cầu sửa lại bàn giao cột mốc ${milestoneId} (Lần ${body.revisionCount}) — Trạng thái quay về ESCROW_PAID để nộp lại!`,
+    );
+    await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
+  };
+
+  const handleRefundEscrow = async (milestoneId: string) => {
+    setStatusMsg(null);
+    setErrorMsg(null);
+
+    const res = await fetch(
+      `http://localhost:3000/api/v1/payments/milestones/${milestoneId}/refund-escrow`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ refundReason: revisionOrRefundNote }),
+      },
+    );
+
+    const body = await res.json();
+    if (!res.ok) {
+      setErrorMsg(body.message || 'Hoàn trả ký quỹ thất bại.');
+      return;
+    }
+
+    setStatusMsg(
+      `Đã hoàn trả 100% ký quỹ cột mốc ${milestoneId} (REFUNDED) — Số dư ký quỹ còn lại: ${body.escrowBalanceAfterRefund.toLocaleString('vi-VN')} VNĐ!`,
+    );
+    await loadProjectLedger(projectId);
+    await loadGlobalReconciliation();
   };
 
   return (
@@ -407,7 +554,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
       <hr style={{ margin: '32px 0', borderColor: '#cbd5e1' }} />
 
       <h2>
-        Quản lý Cột mốc Ký quỹ, Nghiệm thu & Sổ cái Phân bổ 70/20/10 (Ngày D12 — REQ-FIN-01/02/03)
+        Quản lý Cột mốc Ký quỹ, Nghiệm thu & Sổ cái Phân bổ 70/20/10 (Ngày D12 & D13 — REQ-FIN-01/02/03)
       </h2>
 
       <form
@@ -448,7 +595,10 @@ export const PayosSandboxSpikePage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => loadProjectLedger(projectId)}
+              onClick={() => {
+                loadProjectLedger(projectId);
+                loadGlobalReconciliation();
+              }}
               style={{ padding: '10px 14px' }}
             >
               Tải Sổ cái Dự án
@@ -461,6 +611,15 @@ export const PayosSandboxSpikePage: React.FC = () => {
             type="text"
             value={deliverableNote}
             onChange={(e) => setDeliverableNote(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 4 }}
+          />
+        </label>
+        <label>
+          Ghi chú Yêu cầu sửa lại bàn giao / Lý do Hoàn trả ký quỹ (D13 - Tối thiểu 10 ký tự)
+          <input
+            type="text"
+            value={revisionOrRefundNote}
+            onChange={(e) => setRevisionOrRefundNote(e.target.value)}
             style={{ width: '100%', padding: 8, marginTop: 4 }}
           />
         </label>
@@ -478,7 +637,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
               <strong>
                 {ledgerData.escrowSummary.totalEscrowDeposited.toLocaleString('vi-VN')} VNĐ
               </strong>{' '}
-              | Đã giải ngân 70/20/10:{' '}
+              | Đã giải ngân/hoàn trả:{' '}
               <strong>
                 {ledgerData.escrowSummary.totalDisbursed.toLocaleString('vi-VN')} VNĐ
               </strong>{' '}
@@ -506,6 +665,7 @@ export const PayosSandboxSpikePage: React.FC = () => {
                 </strong>
                 <span>
                   Trạng thái cột mốc: <strong>{ms.status}</strong>
+                  {ms.revisionCount ? ` (Đã sửa ${ms.revisionCount} lần)` : ''}
                 </span>
               </div>
               <p style={{ margin: '4px 0', fontSize: 14 }}>{ms.description}</p>
@@ -514,22 +674,48 @@ export const PayosSandboxSpikePage: React.FC = () => {
                   Bàn giao: {ms.deliverableUrl} ({ms.deliverableNote})
                 </p>
               )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              {ms.lastRevisionNote && (
+                <p style={{ margin: '4px 0', fontSize: 13, color: '#b45309' }}>
+                  Yêu cầu chỉnh sửa gần nhất: {ms.lastRevisionNote}
+                </p>
+              )}
+              {ms.refundReason && (
+                <p style={{ margin: '4px 0', fontSize: 13, color: '#991b1b' }}>
+                  Lý do hoàn trả ký quỹ: {ms.refundReason}
+                </p>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                 {ms.status === 'PLANNED' && (
-                  <button
-                    onClick={() => handleConfirmEscrow(ms.id)}
-                    style={{ padding: '6px 12px', fontWeight: 600 }}
-                  >
-                    1. Xác nhận Ký quỹ & Kích hoạt IN_PROGRESS
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleConfirmEscrow(ms.id)}
+                      style={{ padding: '6px 12px', fontWeight: 600 }}
+                    >
+                      1a. Xác nhận Ký quỹ & Kích hoạt IN_PROGRESS
+                    </button>
+                    <button
+                      onClick={() => handleSyncPayosWebhookToMilestone(ms.id)}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      1b. Đồng bộ tự động từ PayOS Webhook (D13)
+                    </button>
+                  </>
                 )}
                 {ms.status === 'ESCROW_PAID' && (
-                  <button
-                    onClick={() => handleSubmitDeliverable(ms.id)}
-                    style={{ padding: '6px 12px', fontWeight: 600 }}
-                  >
-                    2. Nộp Bàn giao Cột mốc (SUBMITTED)
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleSubmitDeliverable(ms.id)}
+                      style={{ padding: '6px 12px', fontWeight: 600 }}
+                    >
+                      2. Nộp Bàn giao Cột mốc (SUBMITTED)
+                    </button>
+                    <button
+                      onClick={() => handleRefundEscrow(ms.id)}
+                      style={{ padding: '6px 12px', color: '#991b1b' }}
+                    >
+                      Hoàn trả Ký quỹ (ESCROW_REFUND - D13)
+                    </button>
+                  </>
                 )}
                 {ms.status === 'SUBMITTED' && (
                   <>
@@ -544,6 +730,18 @@ export const PayosSandboxSpikePage: React.FC = () => {
                       style={{ padding: '6px 12px', fontWeight: 600 }}
                     >
                       3b. Nghiệm thu, Chia 70/20/10 & Đóng dự án (COMPLETED)
+                    </button>
+                    <button
+                      onClick={() => handleRequestRevision(ms.id)}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      3c. Yêu cầu Sửa lại Bàn giao (D13)
+                    </button>
+                    <button
+                      onClick={() => handleRefundEscrow(ms.id)}
+                      style={{ padding: '6px 12px', color: '#991b1b' }}
+                    >
+                      3d. Hoàn trả Ký quỹ (D13)
                     </button>
                   </>
                 )}
@@ -580,6 +778,44 @@ export const PayosSandboxSpikePage: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {reconciliationSummary && (
+        <div
+          style={{
+            marginTop: 24,
+            border: '1px solid #94a3b8',
+            borderRadius: 8,
+            padding: 16,
+            background: '#f8fafc',
+          }}
+        >
+          <h3>
+            Báo cáo Đối soát Tổng hợp Sổ cái & Quỹ Lab Toàn Hệ thống (D13 — LAB_ADMIN / SYSTEM_ADMIN)
+          </h3>
+          <p style={{ margin: '6px 0', fontSize: 14 }}>
+            Tổng cột mốc: <strong>{reconciliationSummary.totalMilestones}</strong> | Đã nạp ký quỹ:{' '}
+            <strong>
+              {reconciliationSummary.ledgerTotals.totalEscrowDeposited.toLocaleString('vi-VN')} VNĐ
+            </strong>{' '}
+            | Đã giải ngân 70/20/10:{' '}
+            <strong>
+              {reconciliationSummary.ledgerTotals.totalDisbursed702010.toLocaleString('vi-VN')} VNĐ
+            </strong>{' '}
+            | Đã hoàn trả DN:{' '}
+            <strong>
+              {reconciliationSummary.ledgerTotals.totalRefundedToEnterprise.toLocaleString('vi-VN')}{' '}
+              VNĐ
+            </strong>{' '}
+            | Số dư Ký quỹ đang giữ:{' '}
+            <strong>
+              {reconciliationSummary.ledgerTotals.totalEscrowHeldBalance.toLocaleString('vi-VN')}{' '}
+              VNĐ
+            </strong>{' '}
+            | Bất biến Sổ cái:{' '}
+            <strong>{reconciliationSummary.invariantHold ? 'PASS (Cân bằng 100%)' : 'FAIL'}</strong>
+          </p>
         </div>
       )}
     </div>

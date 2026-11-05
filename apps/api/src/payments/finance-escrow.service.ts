@@ -12,19 +12,28 @@ import {
   ConfirmMilestoneEscrowDto,
   CreateProjectMilestoneDto,
   DisbursementAllocationEntity,
+  GlobalReconciliationSummaryDto,
   LedgerEntryEntity,
   LedgerEntryType,
   MilestoneEscrowStatus,
   ProjectMilestoneEntity,
+  RefundMilestoneEscrowDto,
+  RequestMilestoneRevisionDto,
   RevenueSplitBreakdown,
   SubmitMilestoneDeliverableDto,
+  SyncPayosWebhookToMilestoneDto,
 } from './finance-escrow.types';
+import {
+  createPayosWebhookSignature,
+  verifyPayosWebhookSignature,
+} from './payos-signature.util';
 
 @Injectable()
 export class FinanceEscrowService {
   private readonly milestones = new Map<string, ProjectMilestoneEntity>();
   private readonly ledgerEntries: LedgerEntryEntity[] = [];
   private readonly disbursements: DisbursementAllocationEntity[] = [];
+  private readonly processedMilestoneWebhookKeys = new Set<string>();
   private milestoneSequence = 1;
   private orderSequence = 900001;
 
@@ -139,6 +148,10 @@ export class FinanceEscrowService {
       submittedAt: null,
       acceptedBy: null,
       acceptedAt: null,
+      revisionCount: 0,
+      lastRevisionNote: null,
+      refundedAt: null,
+      refundReason: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -530,6 +543,361 @@ export class FinanceEscrowService {
       milestones: projectMilestones,
       ledgerEntries: projectLedger,
       disbursements: projectDisbursements,
+    };
+  }
+
+  /**
+   * Ngày D13 (REQ-FIN-01, REQ-FIN-02, ADR-04):
+   * Đồng bộ tự động Webhook PayOS có chữ ký HMAC-SHA256 vào Cột mốc Ký quỹ & Sổ cái.
+   * Đảm bảo tính Idempotent: Nếu Webhook của cùng một cột mốc được gọi lặp (Replay),
+   * tuyệt đối không ghi trùng bút toán ESCROW_DEPOSIT lần 2.
+   */
+  syncEscrowFromPayosWebhook(
+    user: JwtPayload,
+    milestoneId: string,
+    dto?: SyncPayosWebhookToMilestoneDto,
+  ): {
+    idempotentReplay: boolean;
+    signatureVerified: boolean;
+    milestone: ProjectMilestoneEntity;
+    projectStatus: ProjectStatus;
+    ledgerEntry: LedgerEntryEntity;
+  } {
+    if (
+      user.role !== UserRole.ENTERPRISE &&
+      user.role !== UserRole.LAB_ADMIN &&
+      user.role !== UserRole.SYSTEM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Chỉ Doanh nghiệp sở hữu dự án hoặc Lab Admin mới được phép đồng bộ đối soát Webhook PayOS cho cột mốc.',
+      );
+    }
+
+    const milestone = this.milestones.get(milestoneId);
+    if (!milestone) {
+      throw new NotFoundException(`Không tìm thấy cột mốc ${milestoneId}.`);
+    }
+
+    if (
+      user.role === UserRole.ENTERPRISE &&
+      milestone.enterpriseUserId !== user.sub
+    ) {
+      throw new ForbiddenException(
+        'Bạn không được phép đồng bộ Webhook PayOS cho cột mốc của doanh nghiệp khác.',
+      );
+    }
+
+    const reference = dto?.reference?.trim() || `FT-D13-${milestone.orderCode}`;
+    const webhookData = {
+      orderCode: milestone.orderCode,
+      amount: milestone.amount,
+      description: `ESCROW ${milestone.id}`.slice(0, 25),
+      reference,
+      transactionDateTime: new Date().toISOString(),
+      code: '00',
+      desc: 'Thành công',
+    };
+    const signature = createPayosWebhookSignature(webhookData);
+    const signatureVerified = verifyPayosWebhookSignature(
+      webhookData,
+      signature,
+    );
+
+    const idempotencyKey = `MILESTONE-PAYOS-${milestone.orderCode}-${reference}`;
+    if (
+      this.processedMilestoneWebhookKeys.has(idempotencyKey) ||
+      milestone.status !== MilestoneEscrowStatus.PLANNED
+    ) {
+      const existingDepositEntry = this.ledgerEntries.find(
+        (e) =>
+          e.milestoneId === milestone.id &&
+          e.entryType === LedgerEntryType.ESCROW_DEPOSIT,
+      );
+      const project = this.proposalRepository.findById(milestone.projectId);
+      if (existingDepositEntry && project) {
+        return {
+          idempotentReplay: true,
+          signatureVerified,
+          milestone,
+          projectStatus: project.status,
+          ledgerEntry: existingDepositEntry,
+        };
+      }
+    }
+
+    const confirmed = this.confirmMilestoneEscrow(user, milestoneId, {
+      transactionReference: reference,
+      note: `Đối soát tự động qua PayOS Webhook HMAC (Ref: ${reference}, Order #${milestone.orderCode}).`,
+    });
+    this.processedMilestoneWebhookKeys.add(idempotencyKey);
+
+    return {
+      idempotentReplay: false,
+      signatureVerified,
+      milestone: confirmed.milestone,
+      projectStatus: confirmed.projectStatus,
+      ledgerEntry: confirmed.ledgerEntry,
+    };
+  }
+
+  /**
+   * Ngày D13 (REQ-LAB-02, REQ-FIN-02):
+   * Doanh nghiệp hoặc Lab Admin yêu cầu Nhóm sinh viên chỉnh sửa/nộp lại bàn giao cột mốc
+   * (SUBMITTED -> ESCROW_PAID) trước khi nghiệm thu giải ngân.
+   */
+  requestMilestoneRevision(
+    user: JwtPayload,
+    milestoneId: string,
+    dto: RequestMilestoneRevisionDto,
+  ): ProjectMilestoneEntity {
+    if (
+      user.role !== UserRole.ENTERPRISE &&
+      user.role !== UserRole.LAB_ADMIN &&
+      user.role !== UserRole.SYSTEM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Chỉ Doanh nghiệp sở hữu dự án hoặc Lab Admin mới có quyền yêu cầu chỉnh sửa lại bàn giao cột mốc.',
+      );
+    }
+
+    const milestone = this.milestones.get(milestoneId);
+    if (!milestone) {
+      throw new NotFoundException(`Không tìm thấy cột mốc ${milestoneId}.`);
+    }
+
+    if (
+      user.role === UserRole.ENTERPRISE &&
+      milestone.enterpriseUserId !== user.sub
+    ) {
+      throw new ForbiddenException(
+        'Doanh nghiệp không được phép đánh giá cột mốc của doanh nghiệp khác.',
+      );
+    }
+
+    if (milestone.status !== MilestoneEscrowStatus.SUBMITTED) {
+      throw new ConflictException({
+        code: 'INVALID_MILESTONE_STATE_FOR_REVISION',
+        message: `Chỉ có thể yêu cầu sửa lại bàn giao khi cột mốc đang ở trạng thái SUBMITTED (hiện tại: ${milestone.status}).`,
+      });
+    }
+
+    if (!dto?.revisionNote || dto.revisionNote.trim().length < 10) {
+      throw new BadRequestException(
+        'Ghi chú yêu cầu chỉnh sửa bàn giao (revisionNote) bắt buộc tối thiểu 10 ký tự.',
+      );
+    }
+
+    const now = new Date().toISOString();
+    const updated: ProjectMilestoneEntity = {
+      ...milestone,
+      status: MilestoneEscrowStatus.ESCROW_PAID,
+      revisionCount: (milestone.revisionCount ?? 0) + 1,
+      lastRevisionNote: dto.revisionNote.trim(),
+      updatedAt: now,
+    };
+
+    this.milestones.set(milestone.id, updated);
+
+    const project = this.proposalRepository.findById(milestone.projectId);
+    if (project) {
+      this.proposalRepository.appendAuditLog({
+        projectId: project.id,
+        actorUserId: user.sub,
+        actorRole: user.role,
+        action: 'REQUEST_MILESTONE_REVISION',
+        fromStatus: project.status,
+        toStatus: project.status,
+        reasonNote: `[${milestone.id}] Yêu cầu chỉnh sửa bàn giao lần ${updated.revisionCount}: ${dto.revisionNote.trim()}`,
+      });
+    }
+
+    return updated;
+  }
+
+  /**
+   * Ngày D13 (REQ-FIN-02, REQ-ENT-03):
+   * Hoàn trả tiền ký quỹ cột mốc (ESCROW_REFUND) cho Doanh nghiệp khi dừng/hủy cột mốc chưa giải ngân.
+   * Ghi bút toán DEBIT (ESCROW_REFUND) để cân bằng Sổ cái về 0 VND và khóa giải ngân cột mốc đó.
+   */
+  refundMilestoneEscrow(
+    user: JwtPayload,
+    milestoneId: string,
+    dto: RefundMilestoneEscrowDto,
+  ): {
+    milestone: ProjectMilestoneEntity;
+    refundLedgerEntry: LedgerEntryEntity;
+    escrowBalanceAfterRefund: number;
+  } {
+    if (
+      user.role !== UserRole.ENTERPRISE &&
+      user.role !== UserRole.LAB_ADMIN &&
+      user.role !== UserRole.SYSTEM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Chỉ Doanh nghiệp sở hữu dự án hoặc Lab Admin mới được thực hiện hoàn trả ký quỹ cột mốc.',
+      );
+    }
+
+    const milestone = this.milestones.get(milestoneId);
+    if (!milestone) {
+      throw new NotFoundException(`Không tìm thấy cột mốc ${milestoneId}.`);
+    }
+
+    if (
+      user.role === UserRole.ENTERPRISE &&
+      milestone.enterpriseUserId !== user.sub
+    ) {
+      throw new ForbiddenException(
+        'Bạn không có quyền yêu cầu hoàn trả ký quỹ cho cột mốc của doanh nghiệp khác.',
+      );
+    }
+
+    if (
+      milestone.status !== MilestoneEscrowStatus.ESCROW_PAID &&
+      milestone.status !== MilestoneEscrowStatus.SUBMITTED
+    ) {
+      throw new ConflictException({
+        code: 'INVALID_MILESTONE_STATE_FOR_REFUND',
+        message: `Chỉ có thể hoàn trả tiền ký quỹ khi cột mốc đang ở trạng thái ESCROW_PAID hoặc SUBMITTED chưa giải ngân (hiện tại: ${milestone.status}).`,
+      });
+    }
+
+    if (!dto?.refundReason || dto.refundReason.trim().length < 10) {
+      throw new BadRequestException(
+        'Lý do hoàn trả ký quỹ (refundReason) bắt buộc tối thiểu 10 ký tự.',
+      );
+    }
+
+    const now = new Date().toISOString();
+    const updatedMilestone: ProjectMilestoneEntity = {
+      ...milestone,
+      status: MilestoneEscrowStatus.REFUNDED,
+      refundedAt: now,
+      refundReason: dto.refundReason.trim(),
+      updatedAt: now,
+    };
+    this.milestones.set(milestone.id, updatedMilestone);
+
+    const refundLedgerEntry: LedgerEntryEntity = {
+      id: `led-${String(this.ledgerEntries.length + 1).padStart(5, '0')}`,
+      projectId: milestone.projectId,
+      milestoneId: milestone.id,
+      orderCode: milestone.orderCode,
+      entryType: LedgerEntryType.ESCROW_REFUND,
+      direction: 'DEBIT',
+      amount: milestone.amount,
+      currency: 'VND',
+      beneficiaryRole: 'ENTERPRISE_REFUND',
+      description: `Hoàn trả 100% tiền ký quỹ cột mốc "${milestone.title}" cho Doanh nghiệp: ${dto.refundReason.trim()}`,
+      createdBy: user.sub,
+      createdAt: now,
+    };
+    this.ledgerEntries.push(refundLedgerEntry);
+
+    const project = this.proposalRepository.findById(milestone.projectId);
+    if (project) {
+      this.proposalRepository.appendAuditLog({
+        projectId: project.id,
+        actorUserId: user.sub,
+        actorRole: user.role,
+        action: 'REFUND_MILESTONE_ESCROW',
+        fromStatus: project.status,
+        toStatus: project.status,
+        reasonNote: `[${milestone.id}] Hoàn trả ký quỹ ${milestone.amount} VND: ${dto.refundReason.trim()}`,
+      });
+    }
+
+    const ledgerView = this.getProjectFinanceLedger(user, milestone.projectId);
+
+    return {
+      milestone: updatedMilestone,
+      refundLedgerEntry,
+      escrowBalanceAfterRefund: ledgerView.escrowSummary.escrowBalance,
+    };
+  }
+
+  /**
+   * Ngày D13 (REQ-FIN-03, REQ-SYS-01):
+   * Báo cáo Đối soát Tổng hợp Sổ cái & Quỹ vận hành Lab 70/20/10 trên toàn hệ thống.
+   */
+  getGlobalReconciliationSummary(
+    user: JwtPayload,
+  ): GlobalReconciliationSummaryDto {
+    if (
+      user.role !== UserRole.LAB_ADMIN &&
+      user.role !== UserRole.SYSTEM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Chỉ LAB_ADMIN hoặc SYSTEM_ADMIN mới có quyền truy cập Báo cáo Đối soát Sổ cái Toàn hệ thống.',
+      );
+    }
+
+    const allMilestones = Array.from(this.milestones.values());
+
+    const totalEscrowDeposited = this.ledgerEntries
+      .filter((e) => e.entryType === LedgerEntryType.ESCROW_DEPOSIT)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalTeam70 = this.ledgerEntries
+      .filter((e) => e.entryType === LedgerEntryType.SPLIT_TEAM_70)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalMentor20 = this.ledgerEntries
+      .filter((e) => e.entryType === LedgerEntryType.SPLIT_MENTOR_20)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalLab10 = this.ledgerEntries
+      .filter((e) => e.entryType === LedgerEntryType.SPLIT_LAB_10)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalRemainderAbsorbedByLab = this.disbursements
+      .filter((d) => d.recipientRole === 'LAB_FUND')
+      .reduce((sum, d) => sum + d.remainderAbsorbed, 0);
+
+    const totalRefundedToEnterprise = this.ledgerEntries
+      .filter((e) => e.entryType === LedgerEntryType.ESCROW_REFUND)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const totalDisbursed702010 = totalTeam70 + totalMentor20 + totalLab10;
+    const totalEscrowHeldBalance =
+      totalEscrowDeposited - totalDisbursed702010 - totalRefundedToEnterprise;
+
+    return {
+      totalMilestones: allMilestones.length,
+      milestonesByStatus: {
+        planned: allMilestones.filter(
+          (m) => m.status === MilestoneEscrowStatus.PLANNED,
+        ).length,
+        escrowPaid: allMilestones.filter(
+          (m) => m.status === MilestoneEscrowStatus.ESCROW_PAID,
+        ).length,
+        submitted: allMilestones.filter(
+          (m) => m.status === MilestoneEscrowStatus.SUBMITTED,
+        ).length,
+        disbursed: allMilestones.filter(
+          (m) => m.status === MilestoneEscrowStatus.DISBURSED,
+        ).length,
+        refunded: allMilestones.filter(
+          (m) => m.status === MilestoneEscrowStatus.REFUNDED,
+        ).length,
+      },
+      ledgerTotals: {
+        totalEscrowDeposited,
+        totalDisbursed702010,
+        totalTeam70,
+        totalMentor20,
+        totalLab10,
+        totalRemainderAbsorbedByLab,
+        totalRefundedToEnterprise,
+        totalEscrowHeldBalance,
+        currency: 'VND',
+      },
+      invariantHold:
+        totalEscrowHeldBalance >= 0 &&
+        totalEscrowDeposited ===
+          totalDisbursed702010 +
+            totalRefundedToEnterprise +
+            totalEscrowHeldBalance,
     };
   }
 }

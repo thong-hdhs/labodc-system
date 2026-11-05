@@ -4,6 +4,7 @@ export enum MilestoneEscrowStatus {
   SUBMITTED = 'SUBMITTED',
   ACCEPTED = 'ACCEPTED',
   DISBURSED = 'DISBURSED',
+  REFUNDED = 'REFUNDED',
 }
 
 export enum LedgerEntryType {
@@ -11,6 +12,7 @@ export enum LedgerEntryType {
   SPLIT_TEAM_70 = 'SPLIT_TEAM_70',
   SPLIT_MENTOR_20 = 'SPLIT_MENTOR_20',
   SPLIT_LAB_10 = 'SPLIT_LAB_10',
+  ESCROW_REFUND = 'ESCROW_REFUND',
 }
 
 export interface CreateProjectMilestoneDto {
@@ -35,6 +37,18 @@ export interface AcceptMilestoneDto {
   markProjectCompleted?: boolean;
 }
 
+export interface RequestMilestoneRevisionDto {
+  revisionNote: string;
+}
+
+export interface RefundMilestoneEscrowDto {
+  refundReason: string;
+}
+
+export interface SyncPayosWebhookToMilestoneDto {
+  reference?: string;
+}
+
 export interface ProjectMilestoneEntity {
   id: string;
   projectId: string;
@@ -51,6 +65,10 @@ export interface ProjectMilestoneEntity {
   submittedAt: string | null;
   acceptedBy: string | null;
   acceptedAt: string | null;
+  revisionCount?: number;
+  lastRevisionNote?: string | null;
+  refundedAt?: string | null;
+  refundReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,7 +82,12 @@ export interface LedgerEntryEntity {
   direction: 'CREDIT' | 'DEBIT';
   amount: number;
   currency: 'VND';
-  beneficiaryRole: 'ESCROW_VAULT' | 'TEAM_LEADER' | 'MENTOR' | 'LAB_FUND';
+  beneficiaryRole:
+    | 'ESCROW_VAULT'
+    | 'TEAM_LEADER'
+    | 'MENTOR'
+    | 'LAB_FUND'
+    | 'ENTERPRISE_REFUND';
   description: string;
   createdBy: string;
   createdAt: string;
@@ -89,5 +112,28 @@ export interface RevenueSplitBreakdown {
   mentorAmount20: number;
   labAmount10: number;
   remainderAbsorbedByLab: number;
+  invariantHold: boolean;
+}
+
+export interface GlobalReconciliationSummaryDto {
+  totalMilestones: number;
+  milestonesByStatus: {
+    planned: number;
+    escrowPaid: number;
+    submitted: number;
+    disbursed: number;
+    refunded: number;
+  };
+  ledgerTotals: {
+    totalEscrowDeposited: number;
+    totalDisbursed702010: number;
+    totalTeam70: number;
+    totalMentor20: number;
+    totalLab10: number;
+    totalRemainderAbsorbedByLab: number;
+    totalRefundedToEnterprise: number;
+    totalEscrowHeldBalance: number;
+    currency: 'VND';
+  };
   invariantHold: boolean;
 }

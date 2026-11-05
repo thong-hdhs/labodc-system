@@ -5,11 +5,13 @@ import { ProjectsModule } from '../projects/projects.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { SystemAdminController } from './system-admin.controller';
 import { SystemAdminService } from './system-admin.service';
+import { SystemGovernanceController } from './system-governance.controller';
+import { SystemGovernanceService } from './system-governance.service';
 
 @Module({
   imports: [AuthModule, EnterpriseModule, ProjectsModule, PaymentsModule],
-  controllers: [SystemAdminController],
-  providers: [SystemAdminService],
-  exports: [SystemAdminService],
+  controllers: [SystemAdminController, SystemGovernanceController],
+  providers: [SystemAdminService, SystemGovernanceService],
+  exports: [SystemAdminService, SystemGovernanceService],
 })
 export class SystemAdminModule {}
