@@ -7,6 +7,8 @@ import { LabAdminModule } from './lab-admin/lab-admin.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { SystemAdminModule } from './system-admin/system-admin.module';
+import { TeamsModule } from './teams/teams.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { SystemAdminModule } from './system-admin/system-admin.module';
     PaymentsModule,
     ApplicationsModule,
     SystemAdminModule,
+    TeamsModule,
+    TasksModule,
   ],
 })
 export class AppModule {}

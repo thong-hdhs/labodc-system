@@ -13,6 +13,8 @@ import { PayosSandboxSpikePage } from './features/finance/PayosSandboxSpikePage'
 import { TalentProjectsPage } from './features/talent/TalentProjectsPage';
 import { TalentApplicationsPage } from './features/talent/TalentApplicationsPage';
 import { MentorApplicationsPage } from './features/mentor/MentorApplicationsPage';
+import { MentorTeamsPage } from './features/mentor/MentorTeamsPage';
+import { TalentTeamTasksPage } from './features/talent/TalentTeamTasksPage';
 
 export const App: React.FC = () => {
   return (
@@ -59,12 +61,14 @@ export const App: React.FC = () => {
             <Route path="/talent" element={<TalentProfilePage />} />
             <Route path="/talent/projects" element={<TalentProjectsPage />} />
             <Route path="/talent/applications" element={<TalentApplicationsPage />} />
+            <Route path="/talent/team" element={<TalentTeamTasksPage />} />
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.MENTOR]} />}>
             <Route
               path="/mentor/applications"
               element={<MentorApplicationsPage />}
             />
+            <Route path="/mentor/teams" element={<MentorTeamsPage />} />
           </Route>
           <Route path="/403-forbidden" element={<div>403 - Bạn không có quyền truy cập trang này</div>} />
           <Route path="*" element={<Navigate replace to="/login" />} />

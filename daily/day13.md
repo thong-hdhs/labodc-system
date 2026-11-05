@@ -36,3 +36,33 @@
 | **TC-FIN-D13-01** | *Given* Cột mốc 1 ở trạng thái `PLANNED`, *When* gọi `sync-payos-webhook` 2 lần liên tiếp với cùng mã tham chiếu, *Then* lần 1 chuyển sang `ESCROW_PAID`, lần 2 trả `idempotentReplay: true` và chỉ có đúng 1 bút toán `ESCROW_DEPOSIT`. | `200 OK` + Không cộng trùng Sổ cái | **PASS** |
 | **TC-FIN-D13-02** | *Given* Sinh viên nộp bàn giao v1 (`SUBMITTED`), *When* Doanh nghiệp gọi `request-revision`, Sinh viên nộp lại v2 và Doanh nghiệp nghiệm thu `accept-and-split`, *Then* `revisionCount === 1` và chia doanh thu 70/20/10 chính xác tuyệt đối. | `200 OK` + `status === 'DISBURSED'` | **PASS** |
 | **TC-FIN-D13-03** | *Given* Cột mốc 2 đã nạp ký quỹ `15,000,000` VND, *When* Lab Admin gọi `refund-escrow` và kiểm tra `GET /reconciliation/summary`, *Then* cột mốc sang `REFUNDED`, `escrowHeldBalance === 0` và `invariantHold === true`. | `200 OK` + Bất biến Sổ cái cân bằng 100% | **PASS** |
+
+---
+
+## 4. Phần Sinh viên B — Thành lập Team và bổ nhiệm Leader (`REQ-TEAM-01..03`)
+
+> **Phân công:** B sở hữu Team/Membership/Leader; phần ngân sách và ký quỹ ở trên thuộc A, được giữ nguyên.
+> **Quyết định:** Một Team cho mỗi Project. Mentor được phân công tạo Team từ application `ACCEPTED`, phải trong ngưỡng `Project.minTeamSize..maxTeamSize`; một Talent chỉ thuộc một Team active. Mentor bổ nhiệm Leader, không tổ chức election trong scope này.
+> **Persistence:** Repository Team đang in-memory; `009_b_team_formation.sql` là migration draft, chưa chạy trên PostgreSQL.
+
+### API và quyền truy cập
+
+| Endpoint | Quyền | Hành vi |
+|---|---|---|
+| `GET /api/v1/mentor/me/teams` | Mentor | Liệt kê Project được phân công, Team hiện tại và ứng viên có application `ACCEPTED` chưa thuộc Team khác. |
+| `POST /api/v1/mentor/projects/:projectId/team` | Mentor được phân công | Tạo Team từ application IDs; kiểm tra status, Project, min/max, duplicate applicant, một Team/Project và một Team/Talent. |
+| `POST /api/v1/mentor/teams/:teamId/members` | Mentor được phân công | Thêm ứng viên `ACCEPTED` khi Team còn `FORMING` và chưa đạt max. |
+| `DELETE /api/v1/mentor/teams/:teamId/members/:userId` | Mentor được phân công | Chỉ xóa khi Team còn `FORMING` và không làm Team thấp hơn min. |
+| `POST /api/v1/mentor/teams/:teamId/leader` | Mentor được phân công | Bổ nhiệm/thay Leader từ thành viên Team; duy trì đúng một Leader hiện hành, Team thành `ACTIVE`, lưu actor và lịch sử thay đổi. |
+| `GET /api/v1/talent/me/team` | Talent/Talent Leader | Chỉ trả Team của người dùng, vai trò member/leader và lịch sử bổ nhiệm. |
+
+### Kiểm thử D13 B
+
+`d13-d14-team-task-setup.e2e-spec.ts` kiểm tra scope Mentor, ứng viên ACCEPTED-only, kích thước tối thiểu, từ chối ứng viên chưa ACCEPTED, một Team/Project, một Team/Talent, chỉ member được làm Leader, lịch sử thay Leader và Team view cá nhân. Kết quả: **3/3 E2E cases PASS** (có một case bao gồm nhiều assertion).
+
+## 5. Cùng chốt D13 (A + B)
+
+- [x] Giữ nguyên phần Finance/PayOS của A; B hoàn tất Team formation/Leader theo `DEC-B03`.
+- [x] Mọi thao tác Team/Leader đều kiểm tra assignment ở backend; không dùng role do Client gửi để quyết định quyền.
+- [x] Leader là membership role của Team, không thay đổi global role `TALENT`/`TALENT_LEADER`.
+- [x] In-memory repositories và migration draft là giới hạn persistence hiện tại; chưa xác nhận PostgreSQL runtime.

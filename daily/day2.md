@@ -170,7 +170,7 @@ sequenceDiagram
 
 ## 4. Kết quả Cùng chốt Cuối Ngày D2 (Checkpoint A + B)
 
-- [x] PO xác nhận các luồng nghiệp vụ A và các quyết định B đã ghi trong Decision Log; các chi tiết còn mở (như reviewer cuối cho từng loại report, ngoại lệ tuyển chọn và tiêu chí bầu Leader) được giữ trong danh sách follow-up, không coi là đã chốt.
+- [x] PO xác nhận các luồng nghiệp vụ A và quyết định B đã ghi trong Decision Log; reviewer report, ngoại lệ tuyển chọn, escalation và Android distribution tiếp tục ở danh sách follow-up.
 - [x] Đã kiểm tra thực tế quyền truy cập vào các tài khoản dịch vụ (Git, AWS, PayOS Sandbox, Cloudinary) — không có blocker cấp dự án ở cổng D2.
 
 ---
@@ -245,19 +245,14 @@ sequenceDiagram
     LAB->>API: Tạo Team từ các application ACCEPTED
     API->>DB: Tạo Team và membership theo giới hạn dự án
     API-->>TAL: Thông báo thành viên/nhóm được phân công
-    alt Mentor chỉ định Leader
-        MEN->>API: Đề cử một thành viên làm Talent Leader
-    else Nhóm bầu Leader
-        TAL->>API: Ghi nhận kết quả bầu theo policy của Project
-    end
-    API->>DB: Kiểm tra ứng viên là member; ghi leader assignment/history
-    MEN->>API: Xác nhận Leader theo policy
-    API->>DB: Ghi audit và phạm vi quyền Leader
+    MEN->>API: Chỉ định một thành viên làm Team Leader
+    API->>DB: Kiểm tra membership; ghi leader assignment/history
+    API->>DB: Chuyển Team FORMING -> ACTIVE và ghi audit
     LEAD->>API: Gửi trao đổi/báo cáo đại diện nhóm
     API->>DB: Gắn hoạt động với Project/Team và actor
 ```
 
-**Quy tắc đã chọn:** Leader có thể được Mentor chỉ định hoặc do nhóm bầu tùy policy của project; Mentor xác nhận và hệ thống lưu audit. Leader đại diện nhóm trong giao tiếp theo phạm vi được Lab/Mentor cho phép. Chưa giả định quy mô team, cách bầu, quorum hoặc quyền ra quyết định thay mặt nhóm.
+**Quy tắc đã chốt:** Mỗi Project có tối đa một Team; Mentor được phân công tạo Team từ application `ACCEPTED` trong ngưỡng `minTeamSize..maxTeamSize`, mỗi Talent tối đa thuộc một Team active. Mentor bổ nhiệm/thay Leader, không tổ chức election trong scope hiện tại; thay đổi được audit. Leader không nhận global role mới và chỉ đại diện Team trong quyền nghiệp vụ được cấp.
 
 ### 5.3. Luồng B3: Task/Template và báo cáo (`REQ-OPS-01..02`, `REQ-REP-01`)
 
@@ -273,11 +268,11 @@ sequenceDiagram
     actor LAB as Lab Administrator
 
     SYS->>CAT: Quản lý phiên bản template Excel/Docs chuẩn
-    MEN->>API: Chọn template đã phát hành cho project
-    API->>CAT: Kiểm tra template/version được phép dùng
-    CAT-->>API: templateId + version + metadata
-    MEN->>API: Tạo task/milestone, assignee, due date và tham chiếu template
-    API->>DB: Lưu task, trạng thái và template version
+    MEN->>API: Xem metadata template theo project được phân công
+    API->>CAT: Kiểm tra template/version
+    CAT-->>API: templateId + version + metadata (DEMO/NOT_APPROVED nếu chưa có file Lab)
+    MEN->>API: Tạo task/milestone PLANNED và tham chiếu template
+    API->>DB: Lưu task/milestone và template version; chưa gán assignee
     MEN->>API: Cập nhật tiến độ/báo cáo tháng hoặc giai đoạn
     API->>DB: Lưu report DRAFT -> SUBMITTED
     LEAD->>API: Gửi báo cáo nhóm (nếu được phân quyền)
@@ -294,7 +289,7 @@ sequenceDiagram
     end
 ```
 
-**Quy tắc đã chọn:** template Excel/Docs do Lab cung cấp là hồ sơ chuẩn; ứng dụng ghi nhận task/milestone, assignee, trạng thái và file/phiên bản mẫu. Không tích hợp Jira/Trello. Mentor nộp báo cáo tháng/giai đoạn; Leader có thể nộp báo cáo nhóm theo quyền. Trạng thái báo cáo: `DRAFT -> SUBMITTED -> IN_REVIEW -> CHANGES_REQUESTED | APPROVED`.
+**Quy tắc đã chốt:** Template thật chỉ tích hợp sau khi Lab cung cấp; metadata demo phải gắn `DEMO/NOT_APPROVED`, không được trình bày như file chính thức và không có URL/credential tải file. Mentor được phân công mới xem/chọn template; Task chỉ Mentor và thành viên Team xem. D14 tạo task/milestone ở `PLANNED`; giao việc thuộc D15. State workflow đã chốt: `PLANNED -> ASSIGNED -> IN_PROGRESS -> SUBMITTED_FOR_REVIEW -> COMPLETED`, `CHANGES_REQUESTED -> IN_PROGRESS`; các trạng thái phù hợp có thể chuyển `CANCELLED` theo quyền. Không tích hợp Jira/Trello. Luồng report tiếp tục theo lifecycle `DRAFT -> SUBMITTED -> IN_REVIEW -> CHANGES_REQUESTED | APPROVED`.
 
 ### 5.4. Luồng B4: Đánh giá, đóng góp và phân phối phần quỹ nhóm (`REQ-REP-02..03`)
 
@@ -335,8 +330,8 @@ sequenceDiagram
 |---|---|---|---|---|
 | **DEC-B01** | State Application | `SUBMITTED -> UNDER_REVIEW`; nếu project bật `requiresInterview`, Mentor ghi kết quả `PASS/FAIL` và chuyển `INTERVIEW` trước `ACCEPTED/REJECTED`; nếu không bật, Mentor quyết định trực tiếp từ `UNDER_REVIEW`. Talent được rút đơn trước khi được chấp nhận. | PO xác nhận baseline D2; chi tiết D11 do người dùng chọn: phỏng vấn tùy project, chỉ lưu kết quả và ghi chú nội bộ, không lưu lịch hẹn hay điểm số. | `REQ-TAL-02..03`, `REQ-MEN-02` |
 | **DEC-B02** | Người quyết định Application | Mentor phụ trách project quyết định cuối; Lab Admin gán Mentor phụ trách và giám sát/xử lý ngoại lệ. | PO xác nhận theo lựa chọn người dùng ở D11; tiêu chí escalation tiếp tục mở. | `REQ-MEN-02`, permission matrix D3 |
-| **DEC-B03** | Chọn Talent Leader | Mentor chỉ định hoặc nhóm bầu theo policy dự án; Mentor xác nhận và audit. | PO xác nhận theo lựa chọn của người dùng; cách bầu/quorum còn mở. | `REQ-TEAM-02..03` |
-| **DEC-B04** | Task và template | Mẫu Excel/Docs chuẩn của Lab vẫn là hồ sơ chính; app ghi nhận task/milestone/assignee/status và file/version. Không dùng Jira/Trello. | PO xác nhận theo lựa chọn của người dùng; danh mục trường task cụ thể còn theo template v1.0. | `REQ-OPS-01..02` |
+| **DEC-B03** | Team và Talent Leader | Mỗi Project có tối đa một Team; Mentor tạo Team từ các application `ACCEPTED`, quy mô phải trong `minTeamSize..maxTeamSize`, một Talent chỉ thuộc một Team active. Mentor bổ nhiệm Leader; không triển khai election trong scope hiện tại. Team chuyển `FORMING -> ACTIVE` khi được bổ nhiệm Leader; thay Leader có audit history. | Người dùng chốt chính sách trước D13; API kiểm tra server-side và có E2E. | `REQ-TEAM-01..03`, D13 |
+| **DEC-B04** | Task và template | Task/Milestone dùng state `PLANNED -> ASSIGNED -> IN_PROGRESS -> SUBMITTED_FOR_REVIEW -> COMPLETED`; `CHANGES_REQUESTED -> IN_PROGRESS`; trạng thái phù hợp có thể chuyển `CANCELLED` theo quyền. Template metadata có version; do chưa có file thật từ Lab, chỉ hiển thị `DEMO/NOT_APPROVED`, không giả làm tài liệu chính thức. Chỉ Mentor được phân công xem/chọn template; Task chỉ Mentor và thành viên Team xem. API chỉ trả metadata/file reference, không trả URL hay credential. Không dùng Jira/Trello. | Người dùng chốt chính sách trước D14; file mẫu thật chỉ tích hợp sau khi Lab cung cấp. | `REQ-OPS-01..02`, D14 |
 | **DEC-B05** | Báo cáo | Mentor gửi báo cáo tháng/giai đoạn; Leader có thể gửi báo cáo nhóm; lifecycle `DRAFT -> SUBMITTED -> IN_REVIEW -> CHANGES_REQUESTED/APPROVED`. | PO xác nhận theo lựa chọn của người dùng; người review cuối theo loại report cần ghi trong approval matrix. | `REQ-REP-01` |
 | **DEC-B06** | Quyền xem profile/evaluation | Talent tự xem hồ sơ và đánh giá đã chốt của mình; Mentor theo project được giao; Lab Admin theo quyền quản trị; Enterprise chỉ xem ứng viên của project mình và kết quả nghiệm thu/đánh giá tổng hợp, không xem ghi chú nội bộ. | PO xác nhận theo lựa chọn của người dùng; baseline trường/quyền xem Talent được chốt ở Q-B01, các chi tiết còn lại tiếp tục là follow-up. | `REQ-TAL-01`, `REQ-REP-02`, `REQ-ENT-04` |
 | **DEC-B07** | Team fund redistribution | Leader quản lý/đề xuất phân phối Team Pool; Mentor xác nhận; B không tự ghi Ledger hoặc quyết định công thức tiền. | PO/Finance xác nhận quy trình ở mức này; rulebook tài chính A D2 điều khiển việc ghi Ledger. | `REQ-REP-03`, `REQ-FIN-03` |
@@ -349,9 +344,9 @@ Các lựa chọn B trên được người dùng xác nhận là PO đã duyệ
 - [x] Dùng Project lifecycle/status contract của A; B sở hữu Application workflow/schema theo DEC-02.
 - [x] A sở hữu Auth/RBAC implementation, Project, Finance/Ledger, System Admin/template catalog và Cloudinary infrastructure; B sở hữu Talent/Mentor/Team/Task/Report và luồng sử dụng template/file.
 - [x] Application decision cuối thuộc Mentor được phân công; Lab Admin giám sát/xử lý ngoại lệ. Cần xác định loại ngoại lệ và escalation criteria trong approval matrix D3.
-- [x] Team Leader có thể được Mentor chỉ định hoặc nhóm bầu theo policy project; Mentor xác nhận, audit.
-- [x] Excel/Docs của Lab là mẫu chuẩn; app theo dõi metadata/task/workflow, không tích hợp Jira/Trello.
+- [x] D13: mỗi Project tối đa một Team; Mentor tạo từ application ACCEPTED, tuân thủ min/max; Mentor bổ nhiệm/thay Leader và audit; không triển khai election.
+- [x] D14: state Task/Milestone theo DEC-B04; template thật chỉ dùng sau khi Lab cung cấp; metadata demo gắn nhãn rõ và không lộ URL/credential; không tích hợp Jira/Trello.
 - [x] Quyền xem profile, evaluation và report được giới hạn theo self/project/team; Enterprise không xem ghi chú đánh giá nội bộ.
 - [x] Các quyết định A trong DEC-01..DEC-07 và trạng thái tài khoản dịch vụ được xác nhận là quyết định/thông tin thực tế; PO đã xác nhận theo người dùng. Không ghi secrets; bộ tài liệu làm việc không yêu cầu metadata tên/ngày PO.
 - [x] Ghi nhận các quyết định PO theo xác nhận của người dùng; không yêu cầu thêm metadata tên/ngày trong bộ tài liệu làm việc.
-- [ ] Chốt các câu hỏi còn mở: trường profile chia sẻ, eligibility, tiêu chí/quorum bầu Leader, reviewer report, trạng thái task, escalation khi khiếu nại và Android release/distribution.
+- [ ] Chốt các câu hỏi còn mở: trường profile chia sẻ, reviewer report, escalation khi khiếu nại và Android release/distribution.

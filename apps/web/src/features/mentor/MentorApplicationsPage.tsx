@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
 import './mentor-applications.css';
 
@@ -200,6 +201,7 @@ export const MentorApplicationsPage: React.FC = () => {
           <p>Mentor: {user?.fullName ?? user?.email}</p>
         </div>
         <div className="mentor-applications-actions">
+          <Link to="/mentor/teams">Team và công việc</Link>
           <button
             type="button"
             onClick={() => {

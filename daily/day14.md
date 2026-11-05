@@ -37,3 +37,35 @@
 | **Unit-SYS-01** | *Given* `SYSTEM_ADMIN` gọi `updateRuntimeConfig` với tỷ lệ khác `70/20/10` hoặc tự khóa tài khoản của chính mình, *Then* hệ thống ném ngoại lệ `ConflictException`. | `409 Conflict` | **PASS** |
 | **TC-SYS-D14-01** | *Given* `ENTERPRISE` hoặc `LAB_ADMIN` gọi `PATCH /governance/config`, *Then* bị chặn `403 Forbidden`; *When* `SYSTEM_ADMIN` cập nhật khung tuần dự án `6–20 tuần`, *Then* thành công và ghi Audit Log. | `200 OK` + Ghi nhận Audit Log | **PASS** |
 | **TC-SYS-D14-02** | *Given* Luồng dự án D14 hoàn tất ký quỹ, bàn giao và giải ngân `10,000,003` VND, *When* gọi `GET /governance/sprint2-readiness`, *Then* `ledgerInvariantHold === true`, `completed === 1` và `governanceAuditCount === 3`. | `200 OK` + Đối soát khớp 100% | **PASS** |
+
+---
+
+## 4. Phần Sinh viên B — Template metadata và lập kế hoạch Task/Milestone (`REQ-OPS-01..02`)
+
+> **Phân công:** B sở hữu luồng sử dụng template, tạo kế hoạch Task/Milestone và màn hình Mentor/Talent; System Admin và template catalog governance ở phần A vẫn nguyên trạng.
+> **Quyết định:** Chỉ Mentor được phân công xem/chọn template. Hiện chỉ có metadata demo version `1.0.0-demo` với trạng thái `DEMO/NOT_APPROVED`; không giả lập file Lab chính thức. API không trả URL/credential; `fileReference` hiện null. Chỉ tích hợp file thật sau khi Lab cung cấp.
+> **Task scope:** D14 chỉ tạo Task/Milestone ở `PLANNED`, chưa gán người thực hiện; việc giao Task thuộc D15. Task chỉ hiển thị cho Mentor phụ trách và thành viên Team.
+> **Persistence:** Task/Template runtime đang in-memory; `010_b_task_template_setup.sql` là migration draft, chưa chạy trên PostgreSQL.
+
+### API và quyền truy cập
+
+| Endpoint | Quyền | Hành vi |
+|---|---|---|
+| `GET /api/v1/mentor/projects/:projectId/templates` | Mentor được phân công | Trả metadata version/kind/approval/required fields; không có URL/file download. |
+| `GET /api/v1/mentor/projects/:projectId/tasks` | Mentor được phân công | Chỉ trả Task của Team thuộc Project đó. |
+| `POST /api/v1/mentor/projects/:projectId/tasks` | Mentor được phân công | Tạo Task `PLANNED`, gắn template ID/version hợp lệ, không gán assignee. Team cần ở `ACTIVE`. |
+| `POST /api/v1/mentor/tasks/:taskId/milestones` | Mentor được phân công | Tạo Milestone `PLANNED` với template/version loại Milestone chính xác. |
+| `GET /api/v1/talent/me/tasks` | Talent/Talent Leader | Chỉ trả kế hoạch của Team mà người dùng thuộc về. |
+
+Các template seed demo: `TASK-PLAN@1.0.0-demo` và `MILESTONE-PLAN@1.0.0-demo`. Backend kiểm tra chính xác template ID, kind và version; version không tồn tại/bị cũ bị từ chối. State type được khai báo theo D3, nhưng chuyển trạng thái/giao việc không thuộc D14 và chưa được mở ở API này.
+
+### Kiểm thử D14 B
+
+`d13-d14-team-task-setup.e2e-spec.ts` kiểm tra Mentor scope, metadata demo và không có file URL/credential, template version sai bị từ chối, Task/Milestone được lưu đúng version ở `PLANNED`, assignee rỗng và thành viên Team đọc được đúng Task. Kết quả toàn file: **4/4 E2E cases PASS**; riêng luồng D14 nằm trong case Task/Template cuối.
+
+## 5. Cùng chốt D14 (A + B)
+
+- [x] Giữ nguyên System Governance/Finance của A; B chỉ sử dụng template catalog qua metadata contract.
+- [x] Không phát hành hoặc mô tả file demo như template chính thức; không có API download URL/credential.
+- [x] Task/Milestone được tạo `PLANNED`; phần assignment và chuyển trạng thái được để cho D15 trở đi.
+- [x] Kiểm tra backend scope theo Mentor assignment và Team membership.

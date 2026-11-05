@@ -17,5 +17,6 @@ import { ApplicationsService } from './applications.service';
     MentorInvitationRepository,
     ApplicationsService,
   ],
+  exports: [ApplicationRepository, MentorAssignmentRepository],
 })
 export class ApplicationsModule {}
