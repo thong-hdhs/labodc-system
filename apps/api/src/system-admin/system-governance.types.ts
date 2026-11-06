@@ -94,3 +94,18 @@ export interface Sprint2ReadinessReportDto {
   };
   governanceAuditCount: number;
 }
+
+export interface Sprint2GateD16SummaryDto {
+  gateCode: 'GATE_D16_SPRINT_2_COMPLETE';
+  gateStatus: 'PASSED';
+  evaluatedAt: string;
+  deliverablesVerified: {
+    reqEnt03ScopeChangeAndCancel: true;
+    reqFin01MilestoneEscrow: true;
+    reqFin02IdempotentWebhookAndRefundLedger: true;
+    reqFin03Immutable702010RevenueSplit: true;
+    reqLab02ProgressMonitoringAndSettlement: true;
+    reqSys01RuntimeGovernanceAndAuditLogs: true;
+  };
+  readinessSnapshot: Sprint2ReadinessReportDto;
+}

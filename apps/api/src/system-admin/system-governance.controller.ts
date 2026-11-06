@@ -72,4 +72,13 @@ export class SystemGovernanceController {
   getSprint2ReadinessReport(@CurrentUser() user: JwtPayload) {
     return this.governanceService.getSprint2ReadinessReport(user);
   }
+
+  /**
+   * Ngày D16: Báo cáo Nghiệm thu Đóng cổng Sprint 2 Gate D16 (D11–D16)
+   */
+  @Get('sprint2-gate-d16')
+  @Roles(UserRole.SYSTEM_ADMIN, UserRole.LAB_ADMIN)
+  getSprint2GateD16Summary(@CurrentUser() user: JwtPayload) {
+    return this.governanceService.getSprint2GateD16Summary(user);
+  }
 }
