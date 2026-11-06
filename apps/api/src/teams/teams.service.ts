@@ -235,6 +235,11 @@ export class TeamsService {
     return team;
   }
 
+  getTeamMemberRole(teamId: string, userId: string): 'MEMBER' | 'LEADER' | null {
+    const team = this.teamRepository.findById(teamId);
+    return team?.members.find((member) => member.userId === userId)?.role ?? null;
+  }
+
   assertMentorProject(user: JwtPayload, projectId: string) {
     const assignment = this.mentorAssignmentRepository.findByProject(projectId);
     if (!assignment) throw new NotFoundException('Dự án chưa được phân công Mentor.');

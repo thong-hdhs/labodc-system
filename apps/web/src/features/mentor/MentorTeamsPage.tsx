@@ -52,16 +52,37 @@ interface Task {
   description: string;
   dueAt: string | null;
   status: string;
-  assignedUserId: null;
+  assignmentType: 'INDIVIDUAL' | 'TEAM' | null;
+  assignedUserId: string | null;
   templateId: string;
   templateVersion: string;
+  submissions: Array<{
+    id: string;
+    version: number;
+    content: string;
+    templateVersion: string;
+    submittedBy: string;
+    submittedAt: string;
+  }>;
+  stateHistory: Array<{
+    id: string;
+    fromStatus: string;
+    toStatus: string;
+    action: string;
+    actorUserId: string;
+    note: string | null;
+  }>;
   milestones: Array<{
     id: string;
     title: string;
     status: string;
     dueAt: string | null;
+    assignmentType: 'INDIVIDUAL' | 'TEAM' | null;
+    assignedUserId: string | null;
     templateId: string;
     templateVersion: string;
+    submissions: Task['submissions'];
+    stateHistory: Task['stateHistory'];
   }>;
 }
 
@@ -455,6 +476,7 @@ export const MentorTeamsPage: React.FC = () => {
               <TaskCard
                 key={task.id}
                 task={task}
+                members={team?.members ?? []}
                 templates={templates}
                 token={accessToken!}
                 onAction={runAction}
@@ -483,6 +505,7 @@ export const MentorTeamsPage: React.FC = () => {
 
 interface TaskCardProps {
   task: Task;
+  members: TeamMember[];
   templates: TemplateMetadata[];
   token: string;
   onAction: (
@@ -492,21 +515,252 @@ interface TaskCardProps {
   ) => Promise<void>;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, templates, token, onAction }) => {
+const TaskCard: React.FC<TaskCardProps> = ({
+  task,
+  members,
+  templates,
+  token,
+  onAction,
+}) => {
   const [milestoneTitle, setMilestoneTitle] = useState('');
+  const [selectedAssignee, setSelectedAssignee] = useState('');
+  const [milestoneAssignees, setMilestoneAssignees] = useState<Record<string, string>>({});
+  const [reviewNote, setReviewNote] = useState('');
   const milestoneTemplate = templates.find((template) => template.kind === 'MILESTONE');
+  const taskAssignee = members.find((member) => member.userId === task.assignedUserId);
 
   return (
     <article className="ops-task">
       <h4>{task.title} · {task.status}</h4>
       <p>{task.description}</p>
       <small>
-        Template {task.templateId} v{task.templateVersion} · chưa giao người thực hiện
+        Template {task.templateId} v{task.templateVersion} · Người thực hiện:{' '}
+        {task.assignmentType === 'TEAM'
+          ? 'Cả Team'
+          : taskAssignee?.fullName ?? 'Chưa giao'}
       </small>
+      {task.status === 'PLANNED' && (
+        <form
+          className="ops-inline"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onAction(
+              `assign-${task.id}`,
+              () =>
+                apiRequest(`/mentor/tasks/${task.id}/assignment`, token, {
+                  method: 'POST',
+                  body: JSON.stringify(
+                    selectedAssignee === 'TEAM'
+                      ? { assignmentType: 'TEAM' }
+                      : {
+                          assignmentType: 'INDIVIDUAL',
+                          userId: selectedAssignee.replace(/^USER:/, ''),
+                        },
+                  ),
+                }),
+              'Đã giao công việc; trạng thái chuyển sang ASSIGNED.',
+            );
+          }}
+        >
+          <select
+            required
+            aria-label={`Giao công việc ${task.title}`}
+            value={selectedAssignee}
+            onChange={(event) => setSelectedAssignee(event.target.value)}
+          >
+            <option value="">Chọn thành viên thực hiện</option>
+            <option value="TEAM">Cả Team</option>
+            {members.map((member) => (
+              <option key={member.userId} value={`USER:${member.userId}`}>{member.fullName}</option>
+            ))}
+          </select>
+          <button disabled={!selectedAssignee}>Giao task</button>
+        </form>
+      )}
+      {task.submissions.map((submission) => (
+        <section className="ops-submission" key={submission.id}>
+          <h5>Bản nộp v{submission.version} · {new Date(submission.submittedAt).toLocaleString('vi-VN')}</h5>
+          <p>Template version: {submission.templateVersion}</p>
+          <pre>{submission.content}</pre>
+        </section>
+      ))}
+      {task.status === 'SUBMITTED_FOR_REVIEW' && (
+        <div className="ops-inline">
+          <input
+            aria-label={`Ghi chú phản hồi ${task.title}`}
+            value={reviewNote}
+            onChange={(event) => setReviewNote(event.target.value)}
+            placeholder="Ghi chú bắt buộc nếu yêu cầu sửa"
+          />
+          <button
+            onClick={() =>
+              void onAction(
+                `review-${task.id}`,
+                () =>
+                  apiRequest(`/mentor/tasks/${task.id}/review`, token, {
+                    method: 'POST',
+                    body: JSON.stringify({ decision: 'APPROVE' }),
+                  }),
+                'Đã duyệt đầu ra; task hoàn tất.',
+              )
+            }
+          >
+            Duyệt hoàn thành
+          </button>
+          <button
+            disabled={!reviewNote.trim()}
+            onClick={() =>
+              void onAction(
+                `review-${task.id}`,
+                () =>
+                  apiRequest(`/mentor/tasks/${task.id}/review`, token, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      decision: 'REQUEST_CHANGES',
+                      note: reviewNote,
+                    }),
+                  }),
+                'Đã yêu cầu chỉnh sửa.',
+              )
+            }
+          >
+            Yêu cầu chỉnh sửa
+          </button>
+        </div>
+      )}
+      <details>
+        <summary>Lịch sử trạng thái công việc</summary>
+        <ul>
+          {task.stateHistory.map((event) => (
+            <li key={event.id}>
+              {event.fromStatus} → {event.toStatus} · {event.action}
+              {event.note ? ` · ${event.note}` : ''}
+            </li>
+          ))}
+        </ul>
+      </details>
       <ul>
         {task.milestones.map((milestone) => (
-          <li key={milestone.id}>
+          <li key={milestone.id} className="ops-milestone">
             {milestone.title} · {milestone.status} · {milestone.templateId} v{milestone.templateVersion}
+            {' · Người thực hiện: '}
+            {milestone.assignmentType === 'TEAM'
+              ? 'Cả Team'
+              : members.find((member) => member.userId === milestone.assignedUserId)?.fullName ??
+                'Chưa giao'}
+            {milestone.status === 'PLANNED' && (
+              <form
+                className="ops-inline"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onAction(
+                    `assign-milestone-${milestone.id}`,
+                    () =>
+                      apiRequest(
+                        `/mentor/tasks/${task.id}/milestones/${milestone.id}/assignment`,
+                        token,
+                        {
+                          method: 'POST',
+                          body: JSON.stringify(
+                            milestoneAssignees[milestone.id] === 'TEAM'
+                              ? { assignmentType: 'TEAM' }
+                              : {
+                                  assignmentType: 'INDIVIDUAL',
+                                  userId: milestoneAssignees[milestone.id]?.replace(
+                                    /^USER:/,
+                                    '',
+                                  ),
+                                },
+                          ),
+                        },
+                      ),
+                    'Đã giao cột mốc.',
+                  );
+                }}
+              >
+                <select
+                  required
+                  aria-label={`Giao cột mốc ${milestone.title}`}
+                  value={milestoneAssignees[milestone.id] ?? ''}
+                  onChange={(event) =>
+                    setMilestoneAssignees((current) => ({
+                      ...current,
+                      [milestone.id]: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Chọn thành viên thực hiện</option>
+                  <option value="TEAM">Cả Team</option>
+                  {members.map((member) => (
+                    <option key={member.userId} value={`USER:${member.userId}`}>{member.fullName}</option>
+                  ))}
+                </select>
+                <button>Giao milestone</button>
+              </form>
+            )}
+            {milestone.submissions.map((submission) => (
+              <div className="ops-submission" key={submission.id}>
+                <strong>Bản nộp v{submission.version}</strong>
+                <p>{submission.content}</p>
+              </div>
+            ))}
+            {milestone.status === 'SUBMITTED_FOR_REVIEW' && (
+              <div className="ops-inline">
+                <button
+                  onClick={() =>
+                    void onAction(
+                      `review-milestone-${milestone.id}`,
+                      () =>
+                        apiRequest(
+                          `/mentor/tasks/${task.id}/milestones/${milestone.id}/review`,
+                          token,
+                          {
+                            method: 'POST',
+                            body: JSON.stringify({ decision: 'APPROVE' }),
+                          },
+                        ),
+                      'Đã duyệt cột mốc.',
+                    )
+                  }
+                >
+                  Duyệt milestone
+                </button>
+                <button
+                  disabled={!reviewNote.trim()}
+                  onClick={() =>
+                    void onAction(
+                      `review-milestone-${milestone.id}`,
+                      () =>
+                        apiRequest(
+                          `/mentor/tasks/${task.id}/milestones/${milestone.id}/review`,
+                          token,
+                          {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              decision: 'REQUEST_CHANGES',
+                              note: reviewNote,
+                            }),
+                          },
+                        ),
+                      'Đã yêu cầu chỉnh sửa milestone.',
+                    )
+                  }
+                >
+                  Yêu cầu sửa
+                </button>
+              </div>
+            )}
+            <details>
+              <summary>Lịch sử trạng thái milestone</summary>
+              <ul>
+                {milestone.stateHistory.map((event) => (
+                  <li key={event.id}>
+                    {event.fromStatus} → {event.toStatus} · {event.action}
+                    {event.note ? ` · ${event.note}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </li>
         ))}
       </ul>
@@ -542,6 +796,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, templates, token, onAction })
         </form>
       )}
       <style>{`.ops-task{border:1px solid #e5e7eb;padding:12px;margin:12px 0;border-radius:8px}`}</style>
+      <style>{`.ops-milestone{margin:12px 0}.ops-submission{background:#f9fafb;padding:10px;margin:8px 0;white-space:pre-wrap}.ops-submission pre{white-space:pre-wrap;overflow-wrap:anywhere}`}</style>
     </article>
   );
 };

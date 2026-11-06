@@ -16,7 +16,9 @@ describe('Day 13-14 — Team formation and task setup', () => {
   let moduleFixture: TestingModule;
   let mentorToken: string;
   let talentToken: string;
+  let leaderToken: string;
   let unassignedMentorToken: string;
+  let outsiderTalentToken: string;
   let enterpriseToken: string;
   let labAdminToken: string;
   let projectId: string;
@@ -48,11 +50,24 @@ describe('Day 13-14 — Team formation and task setup', () => {
 
     mentorToken = await login('mentor@labodc.uth.edu.vn');
     talentToken = await login('talent@student.uth.edu.vn');
+    leaderToken = await login('leader@student.uth.edu.vn');
     unassignedMentorToken = await moduleFixture.get(JwtService).signAsync(
       {
         sub: otherUserId,
         email: 'unassigned-mentor@labodc.uth.edu.vn',
         role: UserRole.MENTOR,
+        status: UserStatus.ACTIVE,
+      },
+      {
+        secret: process.env.JWT_ACCESS_SECRET || 'labodc_access_secret_d5',
+        expiresIn: '15m',
+      },
+    );
+    outsiderTalentToken = await moduleFixture.get(JwtService).signAsync(
+      {
+        sub: otherUserId,
+        email: 'outsider-talent@labodc.test',
+        role: UserRole.TALENT,
         status: UserStatus.ACTIVE,
       },
       {
@@ -347,6 +362,265 @@ describe('Day 13-14 — Team formation and task setup', () => {
     expect(visibleTasks.body[0].milestones).toHaveLength(1);
   });
 
+  it('D15 assigns task and milestone only to Team members through the assigned Mentor or current Leader', async () => {
+    const teamId = await createActiveTeam();
+    const task = await createTask();
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/assignment`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: otherUserId })
+      .expect(409);
+
+    const assignedByLeader = await request(app.getHttpServer())
+      .post(`/api/v1/talent/me/team/tasks/${task.id}/assignment`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: talentId })
+      .expect(201);
+    expect(assignedByLeader.body).toMatchObject({
+      status: 'ASSIGNED',
+      assignedUserId: talentId,
+    });
+    expect(assignedByLeader.body.stateHistory.at(-1)).toMatchObject({
+      fromStatus: 'PLANNED',
+      toStatus: 'ASSIGNED',
+      action: 'ASSIGNED',
+      actorUserId: leaderId,
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/assignment`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: leaderId })
+      .expect(409);
+
+    const secondTask = await createTask();
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/me/team/tasks/${secondTask.id}/assignment`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: talentId })
+      .expect(403);
+
+    const milestoneTask = await createTask();
+    const milestone = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${milestoneTask.id}/milestones`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({
+        title: 'Cột mốc kiểm thử giao việc',
+        templateId: 'MILESTONE-PLAN',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    const assignedMilestone = await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/tasks/${milestoneTask.id}/milestones/${milestone.body.milestones[0].id}/assignment`,
+      )
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: talentId })
+      .expect(201);
+    expect(assignedMilestone.body.milestones[0]).toMatchObject({
+      status: 'ASSIGNED',
+      assignedUserId: talentId,
+    });
+    expect(assignedMilestone.body.teamId).toBe(teamId);
+
+    const teamAssignedTask = await createTask();
+    const assignedToTeam = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${teamAssignedTask.id}/assignment`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'TEAM' })
+      .expect(201);
+    expect(assignedToTeam.body).toMatchObject({
+      status: 'ASSIGNED',
+      assignmentType: 'TEAM',
+      assignedUserId: null,
+    });
+  });
+
+  it('D16 tracks versioned task submissions, rejects unauthorized/stale submissions, and reviews through the state machine', async () => {
+    await createActiveTeam();
+    const task = await createTask();
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/assignment`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: talentId })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/submissions`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ content: 'Bản đầu ra', templateVersion: '1.0.0-demo' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/start`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/start`)
+      .set('Authorization', `Bearer ${outsiderTalentToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/tasks')
+      .set('Authorization', `Bearer ${outsiderTalentToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/start`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/submissions`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ content: '   ', templateVersion: '1.0.0-demo' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/submissions`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ content: 'Bản dùng sai template', templateVersion: '0.9.0' })
+      .expect(409);
+
+    const submittedV1 = await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/submissions`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({
+        content: 'Báo cáo tiến độ và đầu ra phiên bản thứ nhất.',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    expect(submittedV1.body).toMatchObject({
+      status: 'SUBMITTED_FOR_REVIEW',
+      submissions: [
+        expect.objectContaining({
+          version: 1,
+          submittedBy: talentId,
+          templateVersion: '1.0.0-demo',
+        }),
+      ],
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/review`)
+      .set('Authorization', `Bearer ${unassignedMentorToken}`)
+      .send({ decision: 'APPROVE' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/review`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ decision: 'REQUEST_CHANGES' })
+      .expect(409);
+
+    const changesRequested = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/review`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ decision: 'REQUEST_CHANGES', note: 'Bổ sung kết quả kiểm thử.' })
+      .expect(201);
+    expect(changesRequested.body.status).toBe('CHANGES_REQUESTED');
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/start`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    const submittedV2 = await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/submissions`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({
+        content: 'Bản thứ hai đã bổ sung kết quả kiểm thử.',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    expect(submittedV2.body.submissions.map((item: { version: number }) => item.version))
+      .toEqual([1, 2]);
+
+    const completed = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/review`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ decision: 'APPROVE', note: 'Đã kiểm tra.' })
+      .expect(201);
+    expect(completed.body.status).toBe('COMPLETED');
+    expect(completed.body.stateHistory.map((event: { toStatus: string }) => event.toStatus))
+      .toEqual([
+        'PLANNED',
+        'ASSIGNED',
+        'IN_PROGRESS',
+        'SUBMITTED_FOR_REVIEW',
+        'CHANGES_REQUESTED',
+        'IN_PROGRESS',
+        'SUBMITTED_FOR_REVIEW',
+        'COMPLETED',
+      ]);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/review`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ decision: 'CANCEL', note: 'Đã hoàn thành, không thể hủy.' })
+      .expect(409);
+
+    const teamAssignedTask = await createTask();
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${teamAssignedTask.id}/assignment`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'TEAM' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${teamAssignedTask.id}/start`)
+      .set('Authorization', `Bearer ${outsiderTalentToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${teamAssignedTask.id}/start`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(201);
+    const teamSubmission = await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${teamAssignedTask.id}/submissions`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send({
+        content: 'Leader nộp đầu ra thay mặt Team.',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    expect(teamSubmission.body.submissions[0].submittedBy).toBe(leaderId);
+  });
+
+  it('D16 supports versioned milestone submission and mentor review', async () => {
+    await createActiveTeam();
+    const task = await createTask();
+    const taskWithMilestone = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/milestones`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({
+        title: 'Cột mốc nộp đầu ra',
+        templateId: 'MILESTONE-PLAN',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    const milestoneId = taskWithMilestone.body.milestones[0].id as string;
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/mentor/tasks/${task.id}/milestones/${milestoneId}/assignment`,
+      )
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ assignmentType: 'INDIVIDUAL', userId: talentId })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/tasks/${task.id}/milestones/${milestoneId}/start`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    const submitted = await request(app.getHttpServer())
+      .post(
+        `/api/v1/talent/tasks/${task.id}/milestones/${milestoneId}/submissions`,
+      )
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({
+        content: 'Kết quả cột mốc phiên bản 1.',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    expect(submitted.body.milestones[0]).toMatchObject({
+      status: 'SUBMITTED_FOR_REVIEW',
+      submissions: [expect.objectContaining({ version: 1 })],
+    });
+    const reviewed = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/tasks/${task.id}/milestones/${milestoneId}/review`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ decision: 'APPROVE' })
+      .expect(201);
+    expect(reviewed.body.milestones[0].status).toBe('COMPLETED');
+  });
+
   async function login(email: string): Promise<string> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -371,5 +645,32 @@ describe('Day 13-14 — Team formation and task setup', () => {
       status,
     );
     return application.id;
+  }
+
+  async function createActiveTeam(): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/team`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ applicationIds: acceptedApplicationIds })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/teams/${response.body.id}/leader`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ userId: leaderId })
+      .expect(201);
+    return response.body.id;
+  }
+
+  async function createTask(): Promise<{ id: string; teamId: string }> {
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/tasks`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({
+        title: 'Task cho D15/D16',
+        templateId: 'TASK-PLAN',
+        templateVersion: '1.0.0-demo',
+      })
+      .expect(201);
+    return { id: response.body.id, teamId: response.body.teamId };
   }
 });

@@ -9,7 +9,14 @@ import {
 import { JwtPayload, UserRole } from '@labodc/shared-types';
 import { CurrentUser, Roles, RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CreateMilestoneDto, CreateTaskDto } from './task.types';
+import {
+  AssignTaskDto,
+  CreateMilestoneDto,
+  CreateTaskDto,
+  ReviewTaskDto,
+  SubmitMilestoneDto,
+  SubmitTaskDto,
+} from './task.types';
 import { TasksService } from './tasks.service';
 
 @Controller('api/v1')
@@ -53,6 +60,128 @@ export class TasksController {
     @Body() input: CreateMilestoneDto,
   ) {
     return this.tasksService.addMilestone(user, taskId, input);
+  }
+
+  @Post('mentor/tasks/:taskId/assignment')
+  @Roles(UserRole.MENTOR)
+  assignTask(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Body() input: AssignTaskDto,
+  ) {
+    return this.tasksService.assignTask(user, taskId, input, false);
+  }
+
+  @Post('talent/me/team/tasks/:taskId/assignment')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  assignTaskAsLeader(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Body() input: AssignTaskDto,
+  ) {
+    return this.tasksService.assignTask(user, taskId, input, true);
+  }
+
+  @Post('mentor/tasks/:taskId/milestones/:milestoneId/assignment')
+  @Roles(UserRole.MENTOR)
+  assignMilestone(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Param('milestoneId') milestoneId: string,
+    @Body() input: AssignTaskDto,
+  ) {
+    return this.tasksService.assignMilestone(
+      user,
+      taskId,
+      milestoneId,
+      input,
+      false,
+    );
+  }
+
+  @Post('talent/me/team/tasks/:taskId/milestones/:milestoneId/assignment')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  assignMilestoneAsLeader(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Param('milestoneId') milestoneId: string,
+    @Body() input: AssignTaskDto,
+  ) {
+    return this.tasksService.assignMilestone(
+      user,
+      taskId,
+      milestoneId,
+      input,
+      true,
+    );
+  }
+
+  @Post('talent/tasks/:taskId/start')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  startTask(@CurrentUser() user: JwtPayload, @Param('taskId') taskId: string) {
+    return this.tasksService.startTask(user, taskId);
+  }
+
+  @Post('talent/tasks/:taskId/submissions')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  submitTask(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Body() input: SubmitTaskDto,
+  ) {
+    return this.tasksService.submitTask(user, taskId, input);
+  }
+
+  @Post('mentor/tasks/:taskId/review')
+  @Roles(UserRole.MENTOR)
+  reviewTask(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Body() input: ReviewTaskDto,
+  ) {
+    return this.tasksService.reviewTask(user, taskId, input);
+  }
+
+  @Post('talent/tasks/:taskId/milestones/:milestoneId/start')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  startMilestone(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Param('milestoneId') milestoneId: string,
+  ) {
+    return this.tasksService.startMilestone(user, taskId, milestoneId);
+  }
+
+  @Post('talent/tasks/:taskId/milestones/:milestoneId/submissions')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  submitMilestone(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Param('milestoneId') milestoneId: string,
+    @Body() input: SubmitMilestoneDto,
+  ) {
+    return this.tasksService.submitMilestone(
+      user,
+      taskId,
+      milestoneId,
+      input,
+    );
+  }
+
+  @Post('mentor/tasks/:taskId/milestones/:milestoneId/review')
+  @Roles(UserRole.MENTOR)
+  reviewMilestone(
+    @CurrentUser() user: JwtPayload,
+    @Param('taskId') taskId: string,
+    @Param('milestoneId') milestoneId: string,
+    @Body() input: ReviewTaskDto,
+  ) {
+    return this.tasksService.reviewMilestone(
+      user,
+      taskId,
+      milestoneId,
+      input,
+    );
   }
 
   @Get('talent/me/tasks')
