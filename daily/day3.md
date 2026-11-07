@@ -337,5 +337,5 @@ Mọi quyền được kiểm tra tại backend, không chỉ ẩn nút trên cl
 - [x] Quyền dữ liệu B giới hạn theo self/team/assigned project/own project; evaluation cá nhân không lộ cho Enterprise.
 - [x] Cấu hình interview được chốt ở D11: Project field `requiresInterview`; rubric chỉ là kết quả PASS/FAIL và ghi chú nội bộ, không có lịch hẹn/điểm số.
 - [x] Assignment review D11: một Mentor phụ trách chính do Lab Admin gán; lịch sử assignment được giữ.
-- [ ] PO/Mentor xác nhận các chi tiết còn mở: field/eligibility, các transition/withdraw edge cases, election quorum, task states, report reviewer theo loại, escalation criteria và registration close boundary/time zone.
+- [ ] PO/Mentor xác nhận các chi tiết còn mở: field/eligibility, các transition/withdraw edge cases, election quorum, task states, escalation criteria và registration close boundary/time zone. Baseline D18 đã chốt report fields và reviewer (Mentor phụ trách hoặc Lab Admin); hạn nộp/mẫu chính thức vẫn cần Lab/PO xác nhận.
 - [ ] Cập nhật shared OpenAPI/types và test fixtures trước khi client phụ thuộc vào các contract tương ứng.

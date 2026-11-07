@@ -15,6 +15,7 @@ import { TalentApplicationsPage } from './features/talent/TalentApplicationsPage
 import { MentorApplicationsPage } from './features/mentor/MentorApplicationsPage';
 import { MentorTeamsPage } from './features/mentor/MentorTeamsPage';
 import { TalentTeamTasksPage } from './features/talent/TalentTeamTasksPage';
+import { ProgressReportsPage } from './features/reports/ProgressReportsPage';
 
 export const App: React.FC = () => {
   return (
@@ -33,6 +34,9 @@ export const App: React.FC = () => {
             }
           >
             <Route path="/lab-admin" element={<LabReviewQueuePage />} />
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.LAB_ADMIN]} />}>
+            <Route path="/lab-admin/reports" element={<ProgressReportsPage />} />
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.ENTERPRISE]} />}>
             <Route path="/enterprise" element={<EnterpriseProfilePage />} />
@@ -62,6 +66,7 @@ export const App: React.FC = () => {
             <Route path="/talent/projects" element={<TalentProjectsPage />} />
             <Route path="/talent/applications" element={<TalentApplicationsPage />} />
             <Route path="/talent/team" element={<TalentTeamTasksPage />} />
+            <Route path="/talent/reports" element={<ProgressReportsPage />} />
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.MENTOR]} />}>
             <Route
@@ -69,6 +74,7 @@ export const App: React.FC = () => {
               element={<MentorApplicationsPage />}
             />
             <Route path="/mentor/teams" element={<MentorTeamsPage />} />
+            <Route path="/mentor/reports" element={<ProgressReportsPage />} />
           </Route>
           <Route path="/403-forbidden" element={<div>403 - Bạn không có quyền truy cập trang này</div>} />
           <Route path="*" element={<Navigate replace to="/login" />} />

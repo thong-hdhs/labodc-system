@@ -48,6 +48,7 @@ Kết quả: **2/2 D16 E2E cases PASS**. Kiểm chứng lần cuối: API build 
 - [x] Mentor review bị giới hạn theo assignment; Talent bị giới hạn theo assignee/Team.
 - [x] D16 lưu nội dung văn bản; file upload/download và policy lưu trữ được để cho D19.
 - [x] `011_b_task_assignment_and_submissions.sql` là migration draft; chưa triển khai PostgreSQL persistence.
+- [x] Phân biệt deliverable của Task/Milestone với báo cáo tháng/giai đoạn: workflow báo cáo riêng theo `REQ-REP-01` được hoàn thiện ở D18 trong [day18.md](./day18.md), không dùng submission Task thay thế report lifecycle.
 
 ---
 

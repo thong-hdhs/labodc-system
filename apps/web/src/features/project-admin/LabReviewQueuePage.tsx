@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ProjectStatus,
   ProposalRejectionReasonCode,
+  UserRole,
 } from '@labodc/shared-types';
 import { useAuth } from '../../core/auth/AuthContext';
 
@@ -297,9 +299,14 @@ export const LabReviewQueuePage: React.FC = () => {
           Bảng điều khiển Lab Admin — Xét duyệt, Công bố & Đổi phạm vi / Hủy
           (REQ-LAB-01 & REQ-LAB-02)
         </h1>
-        <button onClick={logout} style={{ padding: '6px 12px' }}>
-          Đăng xuất ({user?.email})
-        </button>
+        <div>
+          {user?.role === UserRole.LAB_ADMIN && (
+            <Link to="/lab-admin/reports">Báo cáo & đánh giá</Link>
+          )}{' '}
+          <button onClick={logout} style={{ padding: '6px 12px' }}>
+            Đăng xuất ({user?.email})
+          </button>
+        </div>
       </div>
 
       {statusMsg && (

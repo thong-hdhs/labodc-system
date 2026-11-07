@@ -239,6 +239,7 @@ export const MentorTeamsPage: React.FC = () => {
         </div>
         <div className="ops-inline">
           <Link to="/mentor/applications">Ứng viên</Link>
+          <Link to="/mentor/reports">Báo cáo & đánh giá</Link>
           <button onClick={logout}>Đăng xuất</button>
         </div>
       </header>

@@ -144,6 +144,7 @@ export const TalentTeamTasksPage: React.FC = () => {
           <Link to="/talent">Hồ sơ</Link>{' '}
           <Link to="/talent/projects">Dự án</Link>{' '}
           <Link to="/talent/applications">Đơn ứng tuyển</Link>{' '}
+          <Link to="/talent/reports">Báo cáo & đánh giá</Link>{' '}
           <button onClick={logout}>Đăng xuất</button>
         </nav>
       </header>
