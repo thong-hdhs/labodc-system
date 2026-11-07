@@ -5,24 +5,16 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import {
   TALENT_PROFILE_REPOSITORY,
   TalentProfileRepository,
   isProfileStudentIdConflict,
 } from './talent-profile.repository';
 import {
-  CreatePortfolioItemInput,
+  PortfolioItem,
   TalentProfile,
   UpdateTalentProfileInput,
 } from './talent-profile.types';
-
-const MAX_PORTFOLIO_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_PORTFOLIO_TYPES = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-]);
 
 @Injectable()
 export class TalentService {
@@ -79,24 +71,27 @@ export class TalentService {
     }
   }
 
-  async addPortfolioItem(
+  async addUploadedPortfolioItem(
     userId: string,
-    input: CreatePortfolioItemInput,
+    item: Omit<PortfolioItem, 'status' | 'createdAt'>,
   ): Promise<TalentProfile> {
-    this.validatePortfolioItem(input);
-    const item = await this.profiles.addPortfolioItem(userId, {
-      id: randomUUID(),
-      fileName: input.fileName.trim(),
-      mimeType: input.mimeType,
-      sizeBytes: input.sizeBytes,
-      status: 'PENDING_UPLOAD',
+    const profile = await this.profiles.addPortfolioItem(userId, {
+      ...item,
+      status: 'UPLOADED',
       createdAt: new Date().toISOString(),
     });
-
-    if (!item) {
+    if (!profile) {
       throw new NotFoundException('Hãy lưu hồ sơ Talent trước khi thêm portfolio.');
     }
-    return item;
+    return profile;
+  }
+
+  async setAvatarFileId(userId: string, fileId: string): Promise<TalentProfile> {
+    const profile = await this.profiles.setAvatarFileId(userId, fileId);
+    if (!profile) {
+      throw new NotFoundException('Hãy lưu hồ sơ Talent trước khi thêm ảnh đại diện.');
+    }
+    return profile;
   }
 
   private validateProfile(input: UpdateTalentProfileInput): void {
@@ -121,21 +116,6 @@ export class TalentService {
     }
     this.validateStringList(input.skills, 'skills');
     this.validateStringList(input.certifications, 'certifications');
-  }
-
-  private validatePortfolioItem(input: CreatePortfolioItemInput): void {
-    if (
-      !input ||
-      !this.isText(input.fileName, 1, 255) ||
-      !ALLOWED_PORTFOLIO_TYPES.has(input.mimeType) ||
-      !Number.isInteger(input.sizeBytes) ||
-      input.sizeBytes <= 0 ||
-      input.sizeBytes > MAX_PORTFOLIO_FILE_SIZE
-    ) {
-      throw new BadRequestException(
-        'Tệp portfolio phải là PDF/JPEG/PNG và có kích thước từ 1 byte đến 10 MiB.',
-      );
-    }
   }
 
   private validateStringList(value: unknown, field: string): void {

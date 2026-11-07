@@ -35,7 +35,7 @@ Tài liệu D5 trước đây mô tả migration `001_init_auth.sql`, Docker Com
 | Web form | Dùng Auth access token; route `/talent` và `/talent/profile` giới hạn Talent/Talent Leader; có loading, error, success, empty state. | `apps/web/src/features/talent/TalentProfilePage.tsx`, `apps/web/src/App.tsx` |
 | Test ownership và validation | API E2E kiểm tra owner từ JWT, profile self-service, Talent khác không xem được profile, role Enterprise bị 403. Unit test validation/trùng student ID. | `apps/api/test/talent.e2e-spec.ts`, `apps/api/src/talent/talent.service.spec.ts` |
 | Khả năng build/chạy Web | Bổ sung entry point còn thiếu để Web workspace build được. | `apps/web/index.html`, `apps/web/src/main.tsx` |
-| D6 mở rộng dùng chung | Skills/certifications và portfolio metadata stub có sẵn; chưa upload file bytes hoặc tạo URL public. | `POST /api/v1/talent/me/portfolio` |
+| D6 mở rộng dùng chung | Skills/certifications và portfolio metadata stub có sẵn; chưa upload file bytes hoặc tạo URL public. Route metadata-only này đã được thay thế trong D19 bởi luồng private Cloudinary có signed upload/verification; xem [day19](./day19.md). |
 
 ### Contract D5 của B
 

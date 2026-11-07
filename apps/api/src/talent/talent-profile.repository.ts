@@ -13,11 +13,13 @@ export interface TalentProfileRepository {
   findByStudentId(studentId: string): Promise<TalentProfile | null>;
   save(userId: string, email: string, input: UpdateTalentProfileInput): Promise<TalentProfile>;
   addPortfolioItem(userId: string, item: PortfolioItem): Promise<TalentProfile | null>;
+  setAvatarFileId(userId: string, fileId: string): Promise<TalentProfile | null>;
 }
 
 interface TalentProfileRow {
   user_id: string;
   email: string;
+  avatar_file_id?: string | null;
   student_id: string;
   full_name: string;
   faculty: string | null;
@@ -82,7 +84,7 @@ export class PostgresTalentProfileRepository
          certifications = EXCLUDED.certifications,
          updated_at = NOW()
        RETURNING
-         user_id, $10::text AS email, student_id, full_name, faculty, major, cohort, bio,
+         user_id, $10::text AS email, avatar_file_id, student_id, full_name, faculty, major, cohort, bio,
          skills, certifications, portfolio_items, created_at, updated_at`,
       [
         userId,
@@ -106,7 +108,15 @@ export class PostgresTalentProfileRepository
   ): Promise<TalentProfile | null> {
     const result = await this.pool.query<TalentProfileRow>(
       `UPDATE talent_profiles AS tp
-       SET portfolio_items = tp.portfolio_items || $2::jsonb, updated_at = NOW()
+       SET portfolio_items = CASE
+             WHEN EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements(tp.portfolio_items) AS existing
+               WHERE existing->>'id' = ($2::jsonb -> 0 ->> 'id')
+             ) THEN tp.portfolio_items
+             ELSE tp.portfolio_items || $2::jsonb
+           END,
+           updated_at = NOW()
        WHERE tp.user_id = $1
        RETURNING
          tp.user_id,
@@ -114,6 +124,25 @@ export class PostgresTalentProfileRepository
          tp.student_id, tp.full_name, tp.faculty, tp.major, tp.cohort, tp.bio,
          tp.skills, tp.certifications, tp.portfolio_items, tp.created_at, tp.updated_at`,
       [userId, JSON.stringify([item])],
+    );
+    return result.rows[0] ? this.toProfile(result.rows[0]) : null;
+  }
+
+  async setAvatarFileId(
+    userId: string,
+    fileId: string,
+  ): Promise<TalentProfile | null> {
+    const result = await this.pool.query<TalentProfileRow>(
+      `UPDATE talent_profiles AS tp
+       SET avatar_file_id = $2, updated_at = NOW()
+       WHERE tp.user_id = $1
+       RETURNING
+         tp.user_id,
+         (SELECT u.email FROM users u WHERE u.id = tp.user_id) AS email,
+         tp.avatar_file_id, tp.student_id, tp.full_name, tp.faculty, tp.major,
+         tp.cohort, tp.bio, tp.skills, tp.certifications, tp.portfolio_items,
+         tp.created_at, tp.updated_at`,
+      [userId, fileId],
     );
     return result.rows[0] ? this.toProfile(result.rows[0]) : null;
   }
@@ -126,6 +155,7 @@ export class PostgresTalentProfileRepository
     return {
       userId: row.user_id,
       email: row.email,
+      avatarFileId: row.avatar_file_id ?? null,
       studentId: row.student_id,
       fullName: row.full_name,
       faculty: row.faculty,

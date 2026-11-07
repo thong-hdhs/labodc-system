@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
+import { FileAttachmentsPanel } from '../files/FileAttachmentsPanel';
 
 const API_BASE = 'http://localhost:3000/api/v1';
 
@@ -534,6 +535,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
     <article className="ops-task">
       <h4>{task.title} · {task.status}</h4>
       <p>{task.description}</p>
+      <FileAttachmentsPanel category="TASK_DOCUMENT" taskId={task.id} />
       <small>
         Template {task.templateId} v{task.templateVersion} · Người thực hiện:{' '}
         {task.assignmentType === 'TEAM'

@@ -10,6 +10,12 @@ import { ProjectProposalRepository } from '../src/projects/project-proposal.repo
 import { ReportRepository } from '../src/reports/report.repository';
 import { TeamRepository } from '../src/teams/team.repository';
 import { TeamMemberEntity } from '../src/teams/team.types';
+import { CloudinaryStorageService } from '../src/files/cloudinary-storage.service';
+import {
+  FILE_REPOSITORY,
+  InMemoryFileRepository,
+} from '../src/files/file.repository';
+import { FileAsset } from '../src/files/file.types';
 
 describe('Day 17-18 — Evaluations, contributions and progress reports', () => {
   let app: INestApplication;
@@ -27,6 +33,7 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
   let assignments: MentorAssignmentRepository;
   let teams: TeamRepository;
   let reports: ReportRepository;
+  let fileRepository: InMemoryFileRepository;
 
   const mentorId = '00000000-0000-4000-8000-000000000004';
   const leaderId = '00000000-0000-4000-8000-000000000005';
@@ -37,9 +44,30 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
     process.env.INITIAL_SYSADMIN_PASSWORD || 'ChangeMe_LabOdc@2026!';
 
   beforeAll(async () => {
+    const cloudinaryMock = {
+      createSignedUpload: jest.fn((asset: FileAsset) => ({
+        uploadUrl: 'https://upload.example.test',
+        fields: { public_id: asset.publicId, signature: 'test-signature' },
+      })),
+      verifyUploadedAsset: jest.fn(async (asset: FileAsset) => ({
+        publicId: asset.publicId,
+        resourceType: asset.resourceType,
+        deliveryType: 'authenticated',
+        format: asset.format,
+        bytes: asset.sizeBytes,
+      })),
+      createPrivateDownloadUrl: jest.fn(
+        (asset: FileAsset) => `https://download.example.test/${asset.id}?signed`,
+      ),
+    };
     moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(CloudinaryStorageService)
+      .useValue(cloudinaryMock)
+      .overrideProvider(FILE_REPOSITORY)
+      .useValue(new InMemoryFileRepository())
+      .compile();
     app = moduleFixture.createNestApplication();
     await app.init();
     await app.listen(0);
@@ -47,6 +75,7 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
     assignments = moduleFixture.get(MentorAssignmentRepository);
     teams = moduleFixture.get(TeamRepository);
     reports = moduleFixture.get(ReportRepository);
+    fileRepository = moduleFixture.get<InMemoryFileRepository>(FILE_REPOSITORY);
 
     mentorToken = await login('mentor@labodc.uth.edu.vn');
     talentToken = await login('talent@student.uth.edu.vn');
@@ -115,6 +144,7 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
     reports.clearAll();
     teams.clearAll();
     assignments.clearAll();
+    fileRepository.clearAll();
     assignments.assign(projectId, mentorId, 'lab-admin');
     const members: TeamMemberEntity[] = [
       {
@@ -408,6 +438,55 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
       .post(`/api/v1/reports/${draft.body.id}/approve`)
       .set('Authorization', `Bearer ${labAdminToken}`)
       .expect(201);
+  });
+
+  it('integrates report attachments with Team and Mentor access scopes', async () => {
+    const report = await request(app.getHttpServer())
+      .post('/api/v1/talent/me/reports')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(reportInput())
+      .expect(201);
+    const upload = await request(app.getHttpServer())
+      .post('/api/v1/files/upload-intents')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send({
+        category: 'REPORT_DOCUMENT',
+        reportId: report.body.id,
+        fileName: 'progress.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 2048,
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/files/${upload.body.file.id}/complete`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/reports/${report.body.id}/files`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toEqual([
+          expect.objectContaining({
+            id: upload.body.file.id,
+            category: 'REPORT_DOCUMENT',
+            status: 'UPLOADED',
+          }),
+        ]),
+      );
+    await request(app.getHttpServer())
+      .get(`/api/v1/reports/${report.body.id}/files`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(`/api/v1/reports/${report.body.id}/files`)
+      .set('Authorization', `Bearer ${outsiderTalentToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/v1/files/${upload.body.file.id}/download`)
+      .set('Authorization', `Bearer ${outsiderTalentToken}`)
+      .expect(404);
   });
 
   it('lets the assigned Mentor create project/team reports and prevents scope tampering', async () => {

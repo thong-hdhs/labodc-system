@@ -192,6 +192,33 @@ export class ReportsService {
       .filter((report) => report.teamId === team.id);
   }
 
+  assertCanAccessReportFiles(
+    user: JwtPayload,
+    reportId: string,
+    action: 'READ' | 'UPLOAD',
+  ): ProgressReport {
+    const report = this.getReport(reportId);
+    if (user.role === UserRole.LAB_ADMIN) return report;
+    if (user.role === UserRole.MENTOR) {
+      this.assertMentorProject(user, report.projectId);
+      return report;
+    }
+
+    const team = this.teams.getMyTeamEntity(user.sub);
+    if (!report.teamId || report.teamId !== team.id) {
+      throw new ForbiddenException('Bạn không có quyền truy cập tệp báo cáo này.');
+    }
+    if (
+      action === 'UPLOAD' &&
+      (report.authorRole !== 'TALENT_LEADER' ||
+        report.authorUserId !== user.sub ||
+        this.teams.getTeamMemberRole(team.id, user.sub) !== 'LEADER')
+    ) {
+      throw new ForbiddenException('Chỉ Leader là tác giả mới được đính kèm tệp báo cáo.');
+    }
+    return report;
+  }
+
   getReportHistory(user: JwtPayload, reportId: string) {
     const report = this.getReport(reportId);
     if (user.role === UserRole.LAB_ADMIN) {

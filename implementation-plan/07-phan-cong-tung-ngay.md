@@ -146,7 +146,7 @@ Mỗi ngày dùng cùng một bố cục: **Input** là điều kiện bắt đ�
 ### D19 — Minh bạch tài chính và file
 - **Input:** File upload policy, transparency report criteria.
 - **A:** Lab transparency/monthly finance report: query/API + dashboard/export UI + calculation tests.
-- **B:** Cloudinary integration: upload/download API + UI cho avatar/portfolio/task docs + access/size tests.
+- **B:** Cloudinary integration: upload/download API + UI cho avatar/portfolio/task/report docs + access/size tests; A cung cấp cấu hình tài khoản/secrets.
 - **Cùng chốt:** Verify file permissions; report sums compare ledger fixtures.
 
 ### D20 — Sprint tích hợp

@@ -10,6 +10,7 @@ import { SystemAdminModule } from './system-admin/system-admin.module';
 import { TeamsModule } from './teams/teams.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ReportsModule } from './reports/reports.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ReportsModule } from './reports/reports.module';
     TeamsModule,
     TasksModule,
     ReportsModule,
+    FilesModule,
   ],
 })
 export class AppModule {}

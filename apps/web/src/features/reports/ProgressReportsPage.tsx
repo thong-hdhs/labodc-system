@@ -2,6 +2,7 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { UserRole } from '@labodc/shared-types';
 import { useAuth } from '../../core/auth/AuthContext';
+import { FileAttachmentsPanel } from '../files/FileAttachmentsPanel';
 
 const API_BASE = 'http://localhost:3000/api/v1';
 
@@ -682,6 +683,13 @@ export const ProgressReportsPage: React.FC = () => {
             {report.blockers && <p>Vướng mắc: {report.blockers}</p>}
             <p>Bước tiếp theo: {report.nextSteps}</p>
             {report.reviewNote && <p>Ghi chú review: {report.reviewNote}</p>}
+            <FileAttachmentsPanel
+              category="REPORT_DOCUMENT"
+              reportId={report.id}
+              canUpload={
+                isMentor || isLabAdmin || report.authorUserId === user?.id
+              }
+            />
             <button
               disabled={Boolean(busy)}
               onClick={() => void viewReportHistory(report.id)}

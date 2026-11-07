@@ -68,6 +68,7 @@ describe('Mentor application review and invitations (D11-D12)', () => {
         bio: input.bio ?? null,
       }),
       addPortfolioItem: async () => null,
+      setAvatarFileId: async () => null,
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

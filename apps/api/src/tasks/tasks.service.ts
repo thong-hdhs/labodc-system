@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { JwtPayload } from '@labodc/shared-types';
+import { JwtPayload, UserRole } from '@labodc/shared-types';
 import { TeamEntity } from '../teams/team.types';
 import { TeamsService } from '../teams/teams.service';
 import {
@@ -81,6 +81,36 @@ export class TasksService {
   getMyTasks(user: JwtPayload) {
     const team = this.teamsService.getMyTeamEntity(user.sub);
     return this.taskRepository.findByTeam(team.id).map((task) => this.presentTask(task));
+  }
+
+  assertCanAccessTaskFiles(
+    user: JwtPayload,
+    taskId: string,
+    action: 'READ' | 'UPLOAD',
+  ): TaskEntity {
+    const task = this.getTask(taskId);
+    if (user.role === UserRole.LAB_ADMIN) return task;
+    if (user.role === UserRole.MENTOR) {
+      this.teamsService.assertMentorProject(user, task.projectId);
+      return task;
+    }
+
+    const team = this.teamsService.getMyTeamEntity(user.sub);
+    if (team.id !== task.teamId) {
+      throw new ForbiddenException('Bạn không có quyền truy cập tệp của Team khác.');
+    }
+    if (action === 'UPLOAD') {
+      if (
+        task.assignmentType === 'INDIVIDUAL' &&
+        task.assignedUserId !== user.sub
+      ) {
+        throw new ForbiddenException('Chỉ assignee cá nhân mới được tải tệp lên Task này.');
+      }
+      if (!task.assignmentType) {
+        throw new ForbiddenException('Task chưa được giao; không thể tải tệp lên.');
+      }
+    }
+    return task;
   }
 
   assignTask(

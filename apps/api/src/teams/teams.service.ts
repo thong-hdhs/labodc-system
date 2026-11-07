@@ -235,6 +235,10 @@ export class TeamsService {
     return team;
   }
 
+  findTeamForMember(userId: string): TeamEntity | null {
+    return this.teamRepository.findByMember(userId);
+  }
+
   getTeamMemberRole(teamId: string, userId: string): 'MEMBER' | 'LEADER' | null {
     const team = this.teamRepository.findById(teamId);
     return team?.members.find((member) => member.userId === userId)?.role ?? null;

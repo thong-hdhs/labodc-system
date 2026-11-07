@@ -1,15 +1,7 @@
 import React, { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthContext';
-
-interface PortfolioItem {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  status: 'PENDING_UPLOAD';
-  createdAt: string;
-}
+import { FileAttachmentsPanel } from '../files/FileAttachmentsPanel';
 
 interface TalentProfile {
   userId: string;
@@ -22,7 +14,6 @@ interface TalentProfile {
   bio: string | null;
   skills: string[];
   certifications: string[];
-  portfolioItems: PortfolioItem[];
 }
 
 interface ProfileForm {
@@ -53,7 +44,6 @@ const splitItems = (value: string): string[] =>
 export const TalentProfilePage: React.FC = () => {
   const { user, accessToken } = useAuth();
   const [form, setForm] = useState<ProfileForm>(() => emptyForm(user?.fullName));
-  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -86,7 +76,6 @@ export const TalentProfilePage: React.FC = () => {
             skills: profile.skills.join(', '),
             certifications: profile.certifications.join(', '),
           });
-          setPortfolioItems(profile.portfolioItems);
         }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Không thể tải hồ sơ.');
@@ -130,34 +119,6 @@ export const TalentProfilePage: React.FC = () => {
     }
   };
 
-  const addPortfolio = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !accessToken) return;
-    setError('');
-    setNotice('');
-    try {
-      const response = await fetch('http://localhost:3000/api/v1/talent/me/portfolio', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-        }),
-      });
-      if (!response.ok) throw new Error(await readError(response));
-      const profile = (await response.json()) as TalentProfile;
-      setPortfolioItems(profile.portfolioItems);
-      setNotice('Đã ghi nhận tệp. Upload nội dung thật sẽ được tích hợp với Cloudinary sau.');
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Không thể ghi nhận tệp.');
-    }
-  };
-
   if (loading) return <main><p role="status">Đang tải hồ sơ...</p></main>;
 
   return (
@@ -165,7 +126,8 @@ export const TalentProfilePage: React.FC = () => {
       <h1>Hồ sơ Talent</h1>
       <nav>
         <Link to="/talent/projects">Khám phá dự án</Link>{' | '}
-        <Link to="/talent/applications">Đơn ứng tuyển của tôi</Link>
+        <Link to="/talent/applications">Đơn ứng tuyển của tôi</Link>{' | '}
+        <Link to="/talent/team">Team và công việc</Link>
       </nav>
       <p>Email tài khoản: {user?.email}</p>
       {error && <p role="alert">{error}</p>}
@@ -206,22 +168,13 @@ export const TalentProfilePage: React.FC = () => {
         <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu hồ sơ'}</button>
       </form>
 
+      <section aria-labelledby="avatar-heading">
+        <h2 id="avatar-heading">Ảnh đại diện</h2>
+        <FileAttachmentsPanel category="AVATAR" />
+      </section>
       <section aria-labelledby="portfolio-heading">
         <h2 id="portfolio-heading">Portfolio</h2>
-        <p>Chấp nhận PDF/JPEG/PNG tối đa 10 MiB. D5/D6 chỉ ghi nhận metadata, chưa upload nội dung.</p>
-        <label>
-          Chọn tệp
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={addPortfolio} />
-        </label>
-        {portfolioItems.length === 0 ? (
-          <p>Chưa có tài liệu portfolio.</p>
-        ) : (
-          <ul>
-            {portfolioItems.map((item) => (
-              <li key={item.id}>{item.fileName} — {item.status}</li>
-            ))}
-          </ul>
-        )}
+        <FileAttachmentsPanel category="PORTFOLIO" />
       </section>
     </main>
   );

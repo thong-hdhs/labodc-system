@@ -3,13 +3,14 @@ export interface PortfolioItem {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
-  status: 'PENDING_UPLOAD';
+  status: 'UPLOADED';
   createdAt: string;
 }
 
 export interface TalentProfile {
   userId: string;
   email: string;
+  avatarFileId?: string | null;
   studentId: string;
   fullName: string;
   faculty: string | null;
@@ -32,10 +33,4 @@ export interface UpdateTalentProfileInput {
   bio?: string;
   skills?: string[];
   certifications?: string[];
-}
-
-export interface CreatePortfolioItemInput {
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
 }

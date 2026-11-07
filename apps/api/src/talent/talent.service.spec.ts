@@ -15,6 +15,7 @@ const makeProfile = (userId: string, studentId: string): TalentProfile => ({
   skills: [],
   certifications: [],
   portfolioItems: [],
+  avatarFileId: null,
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 });
@@ -29,6 +30,7 @@ describe('TalentService', () => {
       findByStudentId: jest.fn(),
       save: jest.fn(),
       addPortfolioItem: jest.fn(),
+      setAvatarFileId: jest.fn(),
     };
     service = new TalentService(profiles);
   });
@@ -68,33 +70,36 @@ describe('TalentService', () => {
     expect(profiles.save).not.toHaveBeenCalled();
   });
 
-  it('rejects unsupported file types and files above the temporary size limit', async () => {
-    await expect(
-      service.addPortfolioItem('user-1', {
-        fileName: 'payload.exe',
-        mimeType: 'application/octet-stream',
-        sizeBytes: 100,
-      }),
-    ).rejects.toThrow();
-    await expect(
-      service.addPortfolioItem('user-1', {
-        fileName: 'large.pdf',
-        mimeType: 'application/pdf',
-        sizeBytes: 10 * 1024 * 1024 + 1,
-      }),
-    ).rejects.toThrow();
-    expect(profiles.addPortfolioItem).not.toHaveBeenCalled();
+  it('stores uploaded portfolio metadata only after the file service verifies the asset', async () => {
+    profiles.addPortfolioItem.mockResolvedValue(makeProfile('user-1', 'S123'));
+    await service.addUploadedPortfolioItem('user-1', {
+      id: 'file-1',
+      fileName: 'portfolio.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+    });
+    expect(profiles.addPortfolioItem).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ id: 'file-1', status: 'UPLOADED' }),
+    );
   });
 
-  it('reports a missing profile when a portfolio item is added before profile creation', async () => {
+  it('reports a missing profile when an uploaded portfolio item is attached', async () => {
     profiles.addPortfolioItem.mockResolvedValue(null);
 
     await expect(
-      service.addPortfolioItem('user-1', {
+      service.addUploadedPortfolioItem('user-1', {
+        id: 'file-1',
         fileName: 'portfolio.pdf',
         mimeType: 'application/pdf',
         sizeBytes: 1000,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('sets only the authenticated Talent profile avatar', async () => {
+    profiles.setAvatarFileId.mockResolvedValue(makeProfile('user-1', 'S123'));
+    await service.setAvatarFileId('user-1', 'avatar-file');
+    expect(profiles.setAvatarFileId).toHaveBeenCalledWith('user-1', 'avatar-file');
   });
 });

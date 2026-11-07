@@ -97,7 +97,7 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 |---|---|---|---|
 | **REQ-NFR-B-01 — UX Talent/Mentor** | Làm rõ và kiểm tra giao diện dễ sử dụng; có trạng thái loading, empty, success và error; thông báo lỗi không bị che giấu. | Xuyên suốt; UAT D35 | PO, người dùng thử, A về API error contract |
 | **REQ-NFR-B-02 — Quyền riêng tư theo vai trò/nhóm** | Xác định dữ liệu hồ sơ, ứng viên, nhóm, báo cáo và đánh giá được từng actor xem/sửa; bổ sung kiểm thử truy cập đúng/sai phạm vi cho API và client. | D1–D4 đặc tả; kiểm thử xuyên suốt | A owner auth/RBAC shared; B owner quy tắc nghiệp vụ miền B |
-| **REQ-FILE-B-01 — Portfolio và tài liệu** | Xác định các luồng B cần tải/xem tài liệu và quyền truy cập; kiểm thử client/luồng nghiệp vụ. Không tự quyết định chính sách lưu trữ hoặc cấu hình dịch vụ. | Khi triển khai profile/task/report | A owner hạ tầng/tích hợp Cloudinary theo phân công hiện tại |
+| **REQ-FILE-B-01 — Portfolio và tài liệu** | B sở hữu tích hợp upload/download trong các luồng Talent/Task/Report và kiểm thử quyền nghiệp vụ; A sở hữu tài khoản Cloudinary, secrets, cấu hình môi trường và giới hạn hạ tầng. | D19; regression xuyên suốt | A/B chốt policy và contract trước khi bật môi trường thật |
 | **REQ-DOC-B — Tài liệu SDLC/UML 2.0** | Cập nhật phần miền Talent/Mentor/Team/Task/Report/Mobile trong URD, SRS, DDD, implementation docs, test docs, source docs và hướng dẫn sử dụng/cài đặt mobile khi cần. | Xuyên suốt D1–D40 | A phụ trách phần Enterprise/Lab/Finance/Infrastructure; thống nhất tài liệu dùng chung |
 
 ### 4.4 Câu hỏi nghiệp vụ/UX của B
@@ -117,7 +117,7 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 | **Q-B10** | Đánh giá và đóng góp | Ai đánh giá ai, theo rubric/chu kỳ nào? Sinh viên có xem phản hồi và điểm/đánh giá của mình không? Ai được xem/chỉnh sửa lịch sử đóng góp? | `REQ-REP-02`, `REQ-REP-03` | **Baseline được người dùng xác nhận khi triển khai D17–D18:** Mentor phụ trách đánh giá thành viên Team theo rubric/feedback tường minh, không tự tính điểm; Talent chỉ xem đánh giá cá nhân đã chốt; Lab Admin có quyền đọc theo vai trò. Contribution record là mô tả theo kỳ, Talent chỉ xem phần của mình; tiêu chí chuẩn và quy trình sửa/thay thế đánh giá đã chốt vẫn cần Lab/PO xác nhận. |
 | **Q-B11** | Phân phối phần quỹ của đội | Trong luồng Leader quản lý/đề xuất phân phối và Mentor xác nhận, cần ghi nhận những thông tin/trạng thái nào? Hệ thống chỉ ghi nhận quyết định hay có bước khởi tạo giao dịch chi tiền; ai có quyền phê duyệt cuối? | `REQ-REP-03` | *Chờ PO/Finance/Mentor xác nhận theo rulebook; phối hợp Q-A06/Q-A07* |
 | **Q-B12** | Flutter/Android | Android là nền tảng mục tiêu của kế hoạch B hiện tại. PO xác nhận Android có phải nền tảng nghiệm thu chính thức không? Cần phát hành APK nội bộ hay Google Play; actor và luồng nào bắt buộc trên app? | `REQ-MOB-01` | *Chờ PO xác nhận* |
-| **Q-B13** | Tệp portfolio/tài liệu | Những loại và kích thước tệp nào được phép? Tài liệu nào công khai, tài liệu nào chỉ nhóm/mentor/Lab xem được; có thời hạn lưu/xóa nào không? | `REQ-TAL-01`, `REQ-OPS-02` | *Chờ Lab/PO xác nhận; phối hợp owner Cloudinary* |
+| **Q-B13** | Tệp portfolio/tài liệu | Những loại và kích thước tệp nào được phép? Tài liệu nào công khai, tài liệu nào chỉ nhóm/mentor/Lab xem được; có thời hạn lưu/xóa nào không? | `REQ-TAL-01`, `REQ-OPS-02` | **Người dùng xác nhận khi triển khai D19:** Avatar PNG/JPEG ≤5 MiB; portfolio PDF/JPEG/PNG ≤10 MiB; tài liệu Task/Report PDF/DOCX/XLSX/CSV ≤20 MiB. Tệp private; quyền theo owner/Team/assignee/Mentor phụ trách/Lab Admin theo từng loại; download bằng URL ký ngắn hạn. Browser upload trực tiếp lên Cloudinary qua signed API. Thời hạn lưu/xóa và retention vẫn chờ PO/Lab. |
 
 ### 4.5 Phụ thuộc kỹ thuật và phối hợp A/B
 
@@ -128,7 +128,7 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 | **Application** | Tạo/xem/rút đơn, nhận trạng thái và xử lý chống trùng. | **B sở hữu workflow/schema Application**; A cung cấp Project status contract; hai bên review ranh giới tích hợp. |
 | **Team/mentor assignment** | Team tham chiếu application được duyệt, mentor được gán và quyền theo project. | B sở hữu miền Team/Mentor; thống nhất quan hệ và migration ownership trước khi code. |
 | **Template/System Admin** | Dùng mẫu trong task/report và quản lý đúng phiên bản. | A sở hữu System Admin/danh mục mẫu; B sở hữu luồng sử dụng template trong nghiệp vụ. |
-| **File storage** | Lưu/xem portfolio, template hoặc tài liệu báo cáo có kiểm soát quyền. | A sở hữu hạ tầng/tích hợp Cloudinary; B xác định use case, access rules và kiểm thử sử dụng. |
+| **File storage** | Lưu/xem portfolio, template hoặc tài liệu báo cáo có kiểm soát quyền. | A sở hữu tài khoản/secrets/cấu hình môi trường Cloudinary; B sở hữu integration/API/UI và access rules trong miền Talent/Task/Report. |
 | **Tài chính** | Talent Leader quản lý/đề xuất phân phối phần quỹ đội và Mentor xác nhận. | B sở hữu workflow nhóm; A sở hữu payment/ledger/API tài chính. Công thức, quyền phê duyệt và giao dịch chờ rulebook. |
 | **Lịch triển khai** | Các file giai đoạn trước có mốc khác lịch chi tiết. | Theo quyết định D1, file 07 là nguồn chuẩn; kế hoạch giai đoạn/roadmap đã được đồng bộ. |
 
@@ -143,7 +143,8 @@ Các luồng Talent dự kiến cần PO xác nhận: đăng nhập/hồ sơ, kh
 | Talent profile, discovery, Application workflow/schema | B | B sở hữu trải nghiệm và nghiệp vụ Application; A cung cấp trạng thái Project và review contract shared. |
 | Mentor, Team, Leader, Task, Template usage, Report, Evaluation, contribution | B | System Admin và quản trị danh mục template thuộc A; B sở hữu luồng sử dụng template. |
 | Payment, PayOS, ledger, 70/20/10, advance, finance reports | A | B sở hữu thao tác/UX Talent Leader trong phân phối phần quỹ đội; logic và ledger thuộc A. |
-| Cloudinary/hạ tầng file | A | B xác định use case, quyền nghiệp vụ và kiểm thử sử dụng cho profile/task/report. |
+| Cloudinary account/secrets/environment | A | B tiêu thụ cấu hình theo API contract; không ghi credentials vào source control. |
+| File upload/download ứng dụng Talent/Task/Report | B | Chốt quyền và policy cùng PO; A review cấu hình hạ tầng Cloudinary. |
 | Flutter client | B | Android là mục tiêu lập kế hoạch hiện tại; PO còn phải xác nhận nền tảng/phạm vi nghiệm thu chính thức. |
 
 ### 5.2 Quyết định và việc còn mở
