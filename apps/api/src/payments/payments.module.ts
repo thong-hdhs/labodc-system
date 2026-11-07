@@ -7,6 +7,10 @@ import { FinanceEscrowController } from './finance-escrow.controller';
 import { FinanceEscrowService } from './finance-escrow.service';
 import { ProjectSettlementController } from './project-settlement.controller';
 import { ProjectSettlementService } from './project-settlement.service';
+import { TeamPayoutController } from './team-payout.controller';
+import { TeamPayoutService } from './team-payout.service';
+import { FinancialClosureController } from './financial-closure.controller';
+import { FinancialClosureService } from './financial-closure.service';
 
 @Module({
   imports: [AuthModule, ProjectsModule],
@@ -14,16 +18,22 @@ import { ProjectSettlementService } from './project-settlement.service';
     PaymentsSpikeController,
     FinanceEscrowController,
     ProjectSettlementController,
+    TeamPayoutController,
+    FinancialClosureController,
   ],
   providers: [
     PaymentsSpikeService,
     FinanceEscrowService,
     ProjectSettlementService,
+    TeamPayoutService,
+    FinancialClosureService,
   ],
   exports: [
     PaymentsSpikeService,
     FinanceEscrowService,
     ProjectSettlementService,
+    TeamPayoutService,
+    FinancialClosureService,
   ],
 })
 export class PaymentsModule {}

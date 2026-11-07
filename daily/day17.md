@@ -33,3 +33,42 @@
 - Rubric chưa có tiêu chí chuẩn do Lab phê duyệt; dữ liệu hiện được Mentor cung cấp tường minh, không suy diễn thành điểm số.
 - Chưa có cơ chế sửa/thay thế evaluation đã chốt; cần quy trình audit/supersede được PO xác nhận.
 - Lưu trữ runtime còn in-memory; cần tích hợp repository PostgreSQL và chạy migration trước khi dùng dữ liệu bền vững.
+
+---
+
+# Phần Báo cáo Ngày D17 của Sinh viên A — Phân bổ Chi tiết Quỹ 70% Nhóm Sinh viên Theo Tỷ lệ Đóng góp, Lệnh Chi trả Giải ngân Ngân hàng & Biên lai Tài chính Doanh nghiệp (`REQ-FIN-03`, `REQ-FIN-02`, `REQ-LAB-02`)
+
+> **Người phụ trách:** Sinh viên A (Owner miền Shared Auth/RBAC, Enterprise, Project Lifecycle, Lab Admin, System Admin, Finance/PayOS) phối hợp đồng bộ với Sinh viên B (`ReportsModule` — Đánh giá & Tỷ lệ đóng góp thành viên `012_b_reports_evaluations_and_contributions.sql`)  
+> **Giai đoạn:** Giai đoạn 3 — Báo cáo, Đánh giá, Giải ngân Chi tiết & Hoàn thiện Production (Ngày D17 / Sprint 3: D17–D21)  
+> **Đầu vào:** Biên bản Quyết toán & Sổ cái 70/20/10 (`012_a_project_execution_and_settlement_statements.sql` của Sinh viên A) và Module Báo cáo & Đánh giá Đóng góp Thành viên (`012_b_reports_evaluations_and_contributions.sql`, `apps/api/src/reports/*` của Sinh viên B).  
+> **Đầu ra:** Migration `013_a_member_payouts_and_financial_receipts.sql`, `TeamPayoutService` & `TeamPayoutController` (`apps/api/src/payments/*`), Giao diện `TeamPayoutDistributionPanel.tsx`, Unit Test `team-payout.service.spec.ts` và E2E Test `d17-team-payout-and-receipts.e2e-spec.ts` Pass 100%.
+
+---
+
+## 1. Bảng Tổng hợp Hạng mục Công việc Đã Hoàn thành trong Ngày D17 (Của Sinh viên A)
+
+| Mã Req / ADR | Hạng mục công việc Full-Stack của Sinh viên A | Đường dẫn File / Module thuộc quyền sở hữu của A | Trạng thái | Bằng chứng Kiểm thử |
+| :--- | :--- | :--- | :---: | :--- |
+| **REQ-FIN-03** *(DB Migration)* | Thiết kế Migration `013_a_member_payouts_and_financial_receipts.sql` (`team_member_payout_allocations`, `disbursement_payout_orders`, `enterprise_financial_receipts`) | `apps/api/src/database/migrations/013_a_member_payouts_and_financial_receipts.sql` | **Hoàn thành (100%)** | Đồng bộ chuẩn Schema D3 |
+| **REQ-FIN-03**<br>**DEC-05** | Xây dựng thuật toán & API Phân bổ Quỹ 70% của Nhóm sinh viên cho từng thành viên theo `% đóng góp` (`POST /api/v1/payments/milestones/:id/distribute-team-pool`), cộng phần dư phép chia nguyên cho `TALENT_LEADER` bảo toàn tổng 100% | `apps/api/src/payments/team-payout.types.ts`<br>`apps/api/src/payments/team-payout.service.ts`<br>`apps/api/src/payments/team-payout.controller.ts` | **Hoàn thành (100%)** | Pass Unit Test `team-payout.service.spec.ts` & E2E `TC-FIN-D17-01` |
+| **REQ-FIN-02**<br>**REQ-LAB-02** | Xây dựng API Thực thi Lệnh Chi trả Giải ngân Ngân hàng (`POST /api/v1/payments/milestones/:id/execute-payouts`) và Xuất Biên lai Tài chính Doanh nghiệp (`GET /api/v1/payments/milestones/:id/financial-receipt`) | `apps/api/src/payments/payments.module.ts`<br>`apps/web/src/features/finance/TeamPayoutDistributionPanel.tsx`<br>`apps/api/test/d17-team-payout-and-receipts.e2e-spec.ts` | **Hoàn thành (100%)** | Pass E2E `TC-FIN-D17-02` & `npm run typecheck` |
+
+---
+
+## 2. Danh sách API Endpoints Mới Đã Triển khai trong Ngày D17 (Của Sinh viên A)
+
+| Phương thức & Endpoint | Guards & Roles được phép | Mô tả Nghiệp vụ & Quy tắc Bất biến | Mã HTTP trả về |
+| :--- | :--- | :--- | :--- |
+| `POST /api/v1/payments/milestones/:id/distribute-team-pool` | `JwtAuthGuard`, `RolesGuard`, `@Roles(MENTOR, LAB_ADMIN, SYSTEM_ADMIN, TALENT_LEADER)` | Chia gói thù lao 70% của nhóm cho từng thành viên theo `contributionPercentage` (tổng = 100%), phần dư cộng vào `TALENT_LEADER` để tổng tiền khớp tuyệt đối `teamAmount70`. | `200 OK`<br>`400 Bad Request`<br>`403 Forbidden`<br>`409 Conflict` |
+| `POST /api/v1/payments/milestones/:id/execute-payouts` | `JwtAuthGuard`, `RolesGuard`, `@Roles(LAB_ADMIN, SYSTEM_ADMIN)` | Thực thi 3 lệnh ủy nhiệm chi ngân hàng (`TEAM_LEADER` 70%, `MENTOR` 20%, `LAB_FUND` 10%) kèm mã `bankTransferRef`; chặn chi trả trùng lặp lần 2 (`409 Conflict`). | `200 OK`<br>`403 Forbidden`<br>`409 Conflict` |
+| `GET /api/v1/payments/milestones/:id/financial-receipt` | `JwtAuthGuard`, `RolesGuard`, `@Roles(ENTERPRISE, LAB_ADMIN, SYSTEM_ADMIN, MENTOR, TALENT_LEADER)` | Xuất Biên lai Tài chính & Sao kê phân bổ thù lao của cột mốc cho Doanh nghiệp tài trợ; chặn `403 Forbidden` nếu Doanh nghiệp khác truy cập trái phép. | `200 OK`<br>`403 Forbidden`<br>`409 Conflict` |
+
+---
+
+## 3. Kết quả Kiểm thử Tự động Ngày D17 (`team-payout.service.spec.ts` & `d17-team-payout-and-receipts.e2e-spec.ts`)
+
+| Mã Test Case | Kịch bản kiểm thử (Given / When / Then) | Kết quả mong đợi | Kết quả thực tế |
+| :--- | :--- | :--- | :---: |
+| **Unit-PAY-D17-01** | *Given* Quỹ 70% của nhóm là `7,000,002` VND và 3 thành viên có tỷ lệ đóng góp `34% / 33% / 33%`, *When* gọi `calculateTeam70MemberSplit`, *Then* phần dư `2` VND cộng cho `TALENT_LEADER` (`2,380,002` / `2,310,000` / `2,310,000` VND) và `invariantHold === true`. | `invariantHold === true` | **PASS** |
+| **TC-FIN-D17-01** | *Given* Cột mốc `10,000,003` VND đã `DISBURSED`, *When* `MENTOR` gọi `distribute-team-pool` và `LAB_ADMIN` gọi `execute-payouts`, *Then* tạo đủ 3 khoản phân bổ thành viên và 3 lệnh chi trả ngân hàng; gọi lặp lần 2 bị chặn `409 Conflict`. | `200 OK` + Chống chi trả trùng lặp | **PASS** |
+| **TC-FIN-D17-02** | *Given* Cột mốc đã chi trả hoàn tất, *When* Doanh nghiệp A gọi `GET /financial-receipt` (và Doanh nghiệp B gọi thử), *Then* Doanh nghiệp B bị chặn `403`, Doanh nghiệp A nhận biên lai `PAID_OUT_COMPLETED` khớp 100%. | `200 OK` + Cách ly dữ liệu Doanh nghiệp | **PASS** |
