@@ -20,13 +20,19 @@ interface PublicProject {
   registrationCloseAt?: string | null;
 }
 
-interface RecruitmentEligibility {
-  isOpenForApplications: boolean;
-}
-
 interface Application {
   id: string;
   status: string;
+}
+
+interface DiscoveryResponse {
+  items: PublicProject[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }
 
 export const TalentProjectsPage: React.FC = () => {
@@ -39,8 +45,14 @@ export const TalentProjectsPage: React.FC = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [submittingProjectId, setSubmittingProjectId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
 
-  const loadProjects = useCallback(async (filters?: { keyword?: string; skill?: string }) => {
+  const loadProjects = useCallback(async (
+    filters?: { keyword?: string; skill?: string },
+    requestedPage = 1,
+  ) => {
     setLoading(true);
     setError('');
     setNotice('');
@@ -48,22 +60,18 @@ export const TalentProjectsPage: React.FC = () => {
       const params = new URLSearchParams();
       if (filters?.keyword?.trim()) params.set('keyword', filters.keyword.trim());
       if (filters?.skill?.trim()) params.set('skill', filters.skill.trim());
+      params.set('page', String(requestedPage));
+      params.set('pageSize', '20');
       const query = params.toString();
       const response = await fetch(
-        `http://localhost:3000/api/v1/projects/public${query ? `?${query}` : ''}`,
+        `http://localhost:3000/api/v1/talent/discovery/projects?${query}`,
       );
       if (!response.ok) throw new Error(await readError(response));
-      const published = (await response.json()) as PublicProject[];
-      const eligibility = await Promise.all(
-        published.map(async (project) => {
-          const check = await fetch(
-            `http://localhost:3000/api/v1/projects/${encodeURIComponent(project.id)}/recruitment-eligibility`,
-          );
-          if (!check.ok) throw new Error(await readError(check));
-          return (await check.json()) as RecruitmentEligibility;
-        }),
-      );
-      setProjects(published.filter((_, index) => eligibility[index].isOpenForApplications));
+      const result = (await response.json()) as DiscoveryResponse;
+      setProjects(result.items);
+      setPage(result.pagination.page);
+      setTotalPages(result.pagination.totalPages);
+      setTotalItems(result.pagination.totalItems);
       setSelectedProject(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách dự án.');
@@ -78,7 +86,7 @@ export const TalentProjectsPage: React.FC = () => {
 
   const search = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void loadProjects({ keyword, skill });
+    void loadProjects({ keyword, skill }, 1);
   };
 
   const viewDetails = async (projectId: string) => {
@@ -86,7 +94,7 @@ export const TalentProjectsPage: React.FC = () => {
     setNotice('');
     try {
       const response = await fetch(
-        `http://localhost:3000/api/v1/projects/public/${encodeURIComponent(projectId)}`,
+        `http://localhost:3000/api/v1/talent/discovery/projects/${encodeURIComponent(projectId)}`,
       );
       if (!response.ok) throw new Error(await readError(response));
       setSelectedProject((await response.json()) as PublicProject);
@@ -149,26 +157,46 @@ export const TalentProjectsPage: React.FC = () => {
       ) : projects.length === 0 ? (
         <p>Hiện chưa có dự án công khai đang nhận đơn phù hợp.</p>
       ) : (
-        <ul>
-          {projects.map((project) => (
-            <li key={project.id}>
-              <h2>{project.title}</h2>
-              <p>{project.companyName} · {project.code}</p>
-              <p>{project.summary}</p>
-              <p>Kỹ năng: {project.requiredSkills.join(', ') || 'Chưa nêu'}</p>
-              <button type="button" onClick={() => void viewDetails(project.id)}>
-                Xem chi tiết
-              </button>
-              <button
-                type="button"
-                disabled={submittingProjectId === project.id}
-                onClick={() => void apply(project.id)}
-              >
-                {submittingProjectId === project.id ? 'Đang gửi...' : 'Ứng tuyển'}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p role="status">Tìm thấy {totalItems} dự án phù hợp.</p>
+          <ul>
+            {projects.map((project) => (
+              <li key={project.id}>
+                <h2>{project.title}</h2>
+                <p>{project.companyName} · {project.code}</p>
+                <p>{project.summary}</p>
+                <p>Kỹ năng: {project.requiredSkills.join(', ') || 'Chưa nêu'}</p>
+                <button type="button" onClick={() => void viewDetails(project.id)}>
+                  Xem chi tiết
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingProjectId === project.id}
+                  onClick={() => void apply(project.id)}
+                >
+                  {submittingProjectId === project.id ? 'Đang gửi...' : 'Ứng tuyển'}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <nav aria-label="Phân trang dự án">
+            <button
+              type="button"
+              onClick={() => void loadProjects({ keyword, skill }, page - 1)}
+              disabled={loading || page <= 1}
+            >
+              Trang trước
+            </button>
+            <span>Trang {page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => void loadProjects({ keyword, skill }, page + 1)}
+              disabled={loading || page >= totalPages}
+            >
+              Trang sau
+            </button>
+          </nav>
+        </>
       )}
 
       {selectedProject && (

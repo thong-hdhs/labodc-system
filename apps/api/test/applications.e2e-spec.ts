@@ -139,6 +139,48 @@ describe('Talent discovery and application workflow (D7-D9)', () => {
     expect(wrongSkill.body).toEqual([]);
   });
 
+  it('TC-B-DISC-02: returns paginated, application-eligible discovery results and validates filters', async () => {
+    const firstPage = await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects?keyword=UTH&skill=React&page=1&pageSize=1')
+      .expect(200);
+    expect(firstPage.body).toMatchObject({
+      pagination: {
+        page: 1,
+        pageSize: 1,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    });
+    expect(firstPage.body.items).toEqual([
+      expect.objectContaining({ id: projectId, status: 'PUBLISHED' }),
+    ]);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects?page=0')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects?pageSize=51')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects?skill=React&skill=Dart')
+      .expect(400);
+    const outOfRangePage = await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects?page=99')
+      .expect(200);
+    expect(outOfRangePage.body.pagination.page).toBe(1);
+    expect(outOfRangePage.body.items[0].id).toBe(projectId);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/talent/discovery/projects/${projectId}`)
+      .expect(200);
+    expect(detail.body).toMatchObject({
+      id: projectId,
+      title: 'Nền tảng kết nối dự án UTH',
+    });
+
+
+  });
+
   it('TC-B-APP-01/02: submits one active application and only returns it to its owner', async () => {
     const created = await request(app.getHttpServer())
       .post(`/api/v1/projects/${projectId}/applications`)
@@ -210,6 +252,15 @@ describe('Talent discovery and application workflow (D7-D9)', () => {
       .post(`/api/v1/lab-admin/projects/${projectId}/close-recruitment`)
       .set('Authorization', `Bearer ${labAdminToken}`)
       .expect(200);
+
+    const discovery = await request(app.getHttpServer())
+      .get('/api/v1/talent/discovery/projects')
+      .expect(200);
+    expect(discovery.body.items).toEqual([]);
+    expect(discovery.body.pagination.totalItems).toBe(0);
+    await request(app.getHttpServer())
+      .get(`/api/v1/talent/discovery/projects/${projectId}`)
+      .expect(404);
 
     await request(app.getHttpServer())
       .post(`/api/v1/projects/${projectId}/applications`)

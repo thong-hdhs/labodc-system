@@ -1,16 +1,20 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { ProjectsModule } from '../projects/projects.module';
 import {
   PostgresTalentProfileRepository,
   TALENT_PROFILE_REPOSITORY,
 } from './talent-profile.repository';
 import { TalentController } from './talent.controller';
+import { TalentDiscoveryController } from './talent-discovery.controller';
+import { TalentDiscoveryService } from './talent-discovery.service';
 import { TalentService } from './talent.service';
 
 @Module({
-  imports: [AuthModule],
-  controllers: [TalentController],
+  imports: [AuthModule, ProjectsModule],
+  controllers: [TalentController, TalentDiscoveryController],
   providers: [
+    TalentDiscoveryService,
     TalentService,
     PostgresTalentProfileRepository,
     {
