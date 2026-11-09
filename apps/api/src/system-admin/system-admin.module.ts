@@ -11,6 +11,10 @@ import { ProductionReadinessController } from './production-readiness.controller
 import { ProductionReadinessService } from './production-readiness.service';
 import { ReleaseHandoverController } from './release-handover.controller';
 import { ReleaseHandoverService } from './release-handover.service';
+import { ProductionGoliveController } from './production-golive.controller';
+import { ProductionGoliveService } from './production-golive.service';
+import { FinalArchivalController } from './final-archival.controller';
+import { FinalArchivalService } from './final-archival.service';
 
 @Module({
   imports: [AuthModule, EnterpriseModule, ProjectsModule, PaymentsModule],
@@ -19,18 +23,24 @@ import { ReleaseHandoverService } from './release-handover.service';
     SystemGovernanceController,
     ProductionReadinessController,
     ReleaseHandoverController,
+    ProductionGoliveController,
+    FinalArchivalController,
   ],
   providers: [
     SystemAdminService,
     SystemGovernanceService,
     ProductionReadinessService,
     ReleaseHandoverService,
+    ProductionGoliveService,
+    FinalArchivalService,
   ],
   exports: [
     SystemAdminService,
     SystemGovernanceService,
     ProductionReadinessService,
     ReleaseHandoverService,
+    ProductionGoliveService,
+    FinalArchivalService,
   ],
 })
 export class SystemAdminModule {}
