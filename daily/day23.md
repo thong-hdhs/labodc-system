@@ -37,3 +37,14 @@
 | :--- | :--- | :--- | :---: |
 | **Unit-HYPERCARE-D23-01** | *Given* Phiên diễn tập DR Drill có $\text{RTO} = 420\text{s} > 300\text{s}$ hoặc `LAB_ADMIN` cố ký đóng cổng Gate D23, *Then* chặn `409 Conflict` / `403 Forbidden`. | `409 Conflict` / `403 Forbidden` | **PASS** |
 | **TC-HYPERCARE-D23-01** | *Given* `LAB_ADMIN` thực thi `POST /hypercare/dr-drills` đạt $\text{RTO} = 38\text{s} \le 300\text{s}$ và $\text{RPO} = 0$, *When* `SYSTEM_ADMIN` ký `POST /hypercare/gate-d23-defense-signoff`, *Then* cấp mã `DEFENSE-D23-FINAL-001` (`PASSED_AND_DEFENSE_READY`). | `201 Created` + `GATE_D23_POST_GOLIVE_HYPERCARE_AND_DEFENSE` Passed | **PASS** |
+
+---
+
+## Phần triển khai của Sinh viên B — Ứng tuyển trên Flutter
+
+- Tích hợp nút ứng tuyển ngay trong chi tiết dự án khám phá Flutter, gọi API hiện có `POST /api/v1/projects/:projectId/applications`; không tạo endpoint hoặc thay đổi nghiệp vụ thuộc owner backend.
+- Thêm mục **Ứng tuyển** để tải danh sách của đúng người dùng từ `GET /api/v1/talent/me/applications`, hiển thị trạng thái/lịch sử và chỉ cho rút đơn ở trạng thái còn hiệu lực qua endpoint withdraw hiện có.
+- Có xác nhận trước khi rút đơn, khóa thao tác lặp trong khi đang gửi, xử lý `409` (đã có đơn/không còn hợp lệ), `401`/lỗi mạng và làm mới trạng thái từ máy chủ sau thao tác. Không tự gửi lại yêu cầu ghi khi timeout chưa rõ kết quả.
+- Thêm repository/widget tests cho đường dẫn API, xác thực token, duplicate conflict, xác nhận rút đơn, cập nhật trạng thái và lỗi tải danh sách.
+- Regression API ứng tuyển: `npm test --workspace @labodc/api -- --runInBand test/applications.e2e-spec.ts` — 1 suite / 5 tests PASS; toàn bộ API suite — 41 suites / 102 tests PASS.
+- Flutter/Dart/Android SDK không có trong môi trường; các test mobile là test source, **chưa chạy và chưa có mobile build/device evidence**. E2E API hiện có bao phủ quy tắc ứng tuyển trùng, quyền sở hữu và rút đơn; chưa chạy PayOS sandbox hay build mobile ở checkout này. PayOS/payment status thuộc phần A theo phân công.

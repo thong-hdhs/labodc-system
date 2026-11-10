@@ -29,25 +29,67 @@ class ApiClient {
     String path, {
     String? accessToken,
   }) =>
-      _send('GET', path, accessToken: accessToken);
+      _sendMap('GET', path, accessToken: accessToken);
+
+  Future<List<Map<String, dynamic>>> getList(
+    String path, {
+    String? accessToken,
+  }) =>
+      _sendList('GET', path, accessToken: accessToken);
 
   Future<Map<String, dynamic>> post(
     String path, {
     String? accessToken,
     Map<String, Object?>? body,
   }) =>
-      _send('POST', path, accessToken: accessToken, body: body);
+      _sendMap('POST', path, accessToken: accessToken, body: body);
 
   Future<Map<String, dynamic>> put(
     String path, {
     String? accessToken,
     Map<String, Object?>? body,
   }) =>
-      _send('PUT', path, accessToken: accessToken, body: body);
+      _sendMap('PUT', path, accessToken: accessToken, body: body);
+
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    String? accessToken,
+    Map<String, Object?>? body,
+  }) =>
+      _sendMap('PATCH', path, accessToken: accessToken, body: body);
 
   void close() => _client.close();
 
-  Future<Map<String, dynamic>> _send(
+  Future<Map<String, dynamic>> _sendMap(
+    String method,
+    String path, {
+    String? accessToken,
+    Map<String, Object?>? body,
+  }) async {
+    final decoded = await _sendRaw(
+      method,
+      path,
+      accessToken: accessToken,
+      body: body,
+    );
+    if (decoded is Map<String, dynamic>) return decoded;
+    throw const ApiException('Máy chủ trả về cấu trúc phản hồi không hợp lệ.');
+  }
+
+  Future<List<Map<String, dynamic>>> _sendList(
+    String method,
+    String path, {
+    String? accessToken,
+  }) async {
+    final decoded = await _sendRaw(method, path, accessToken: accessToken);
+    if (decoded is! List ||
+        decoded.any((item) => item is! Map<String, dynamic>)) {
+      throw const ApiException('Máy chủ trả về danh sách không hợp lệ.');
+    }
+    return decoded.cast<Map<String, dynamic>>();
+  }
+
+  Future<Object?> _sendRaw(
     String method,
     String path, {
     String? accessToken,
@@ -80,6 +122,13 @@ class ApiClient {
             body: body == null ? null : jsonEncode(body),
           );
           break;
+        case 'PATCH':
+          response = await _client.patch(
+            uri,
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+          );
+          break;
         default:
           throw StateError('Unsupported HTTP method: $method');
       }
@@ -99,14 +148,9 @@ class ApiClient {
       );
     }
 
-    if (decoded is! Map<String, dynamic>) {
-      throw ApiException(
-        'Máy chủ trả về cấu trúc phản hồi không hợp lệ.',
-        statusCode: response.statusCode,
-      );
-    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = decoded['message'];
+      final message =
+          decoded is Map<String, dynamic> ? decoded['message'] : null;
       throw ApiException(
         message is String
             ? message

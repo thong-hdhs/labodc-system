@@ -6,11 +6,15 @@ import 'core/api/api_client.dart';
 import 'core/auth/auth_models.dart';
 import 'core/auth/auth_repository.dart';
 import 'core/auth/secure_token_store.dart';
+import 'features/applications/application_page.dart';
+import 'features/applications/application_repository.dart';
 import 'features/auth/login_page.dart';
 import 'features/discovery/project_discovery_page.dart';
 import 'features/discovery/project_repository.dart';
 import 'features/talent/profile_page.dart';
 import 'features/talent/talent_repository.dart';
+import 'features/work/work_page.dart';
+import 'features/work/work_repository.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +25,8 @@ void main() {
       authRepository: AuthRepository(api: api, storage: storage),
       talentRepository: TalentRepository(api),
       projectRepository: ProjectRepository(api),
+      applicationRepository: ApplicationRepository(api),
+      workRepository: WorkRepository(api),
     ),
   );
 }
@@ -30,12 +36,16 @@ class LabOdcMobileApp extends StatefulWidget {
     required this.authRepository,
     required this.talentRepository,
     required this.projectRepository,
+    required this.applicationRepository,
+    required this.workRepository,
     super.key,
   });
 
   final AuthRepository authRepository;
   final TalentRepository talentRepository;
   final ProjectRepository projectRepository;
+  final ApplicationRepository applicationRepository;
+  final WorkRepository workRepository;
 
   @override
   State<LabOdcMobileApp> createState() => _LabOdcMobileAppState();
@@ -110,6 +120,8 @@ class _LabOdcMobileAppState extends State<LabOdcMobileApp> {
                   session: _session!,
                   talentRepository: widget.talentRepository,
                   projectRepository: widget.projectRepository,
+                  applicationRepository: widget.applicationRepository,
+                  workRepository: widget.workRepository,
                   onLogout: _logout,
                 ),
     );
@@ -121,12 +133,16 @@ class _TalentHome extends StatefulWidget {
     required this.session,
     required this.talentRepository,
     required this.projectRepository,
+    required this.applicationRepository,
+    required this.workRepository,
     required this.onLogout,
   });
 
   final AuthSession session;
   final TalentRepository talentRepository;
   final ProjectRepository projectRepository;
+  final ApplicationRepository applicationRepository;
+  final WorkRepository workRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -150,7 +166,21 @@ class _TalentHomeState extends State<_TalentHome> {
         session: widget.session,
         repository: widget.talentRepository,
       ),
-      ProjectDiscoveryPage(repository: widget.projectRepository),
+      ProjectDiscoveryPage(
+        repository: widget.projectRepository,
+        applicationRepository: widget.applicationRepository,
+        accessToken: widget.session.accessToken,
+      ),
+      ApplicationPage(
+        repository: widget.applicationRepository,
+        accessToken: widget.session.accessToken,
+      ),
+      WorkPage(
+        repository: widget.workRepository,
+        accessToken: widget.session.accessToken,
+        userId: widget.session.user.id,
+        isTeamLeader: widget.session.user.role == 'TALENT_LEADER',
+      ),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -183,6 +213,14 @@ class _TalentHomeState extends State<_TalentHome> {
           NavigationDestination(
             icon: Icon(Icons.search),
             label: 'Khám phá',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            label: 'Ứng tuyển',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.work_outline),
+            label: 'Công việc',
           ),
         ],
       ),

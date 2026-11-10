@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labodc_mobile/core/api/api_client.dart';
+import 'package:labodc_mobile/features/applications/application_repository.dart';
 import 'package:labodc_mobile/features/discovery/project_discovery_page.dart';
 import 'package:labodc_mobile/features/discovery/project_repository.dart';
 
@@ -60,6 +62,25 @@ class FakeProjectRepository implements ProjectRepository {
       );
 }
 
+class FakeApplicationRepository implements ApplicationRepository {
+  int submitCount = 0;
+  bool failSubmit = false;
+
+  @override
+  Future<List<TalentApplication>> listMine(String accessToken) async => [];
+
+  @override
+  Future<void> submit(String projectId, String accessToken) async {
+    submitCount++;
+    if (failSubmit) {
+      throw const ApiException('Đơn đã tồn tại.', statusCode: 409);
+    }
+  }
+
+  @override
+  Future<void> withdraw(String applicationId, String accessToken) async {}
+}
+
 void main() {
   testWidgets('loads eligible projects and opens the project detail', (tester) async {
     final repository = FakeProjectRepository();
@@ -99,5 +120,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('project-error')), findsOneWidget);
     expect(find.textContaining('API unavailable'), findsOneWidget);
+  });
+
+  testWidgets('submits an application and explains duplicate conflicts',
+      (tester) async {
+    final applications = FakeApplicationRepository()..failSubmit = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectDiscoveryPage(
+            repository: FakeProjectRepository(),
+            applicationRepository: applications,
+            accessToken: 'access-token',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Xem chi tiết'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('apply-to-project')));
+    await tester.pumpAndSettle();
+
+    expect(applications.submitCount, 1);
+    expect(find.byKey(const ValueKey('application-submit-error')), findsOneWidget);
+    expect(find.textContaining('Kiểm tra mục Ứng tuyển'), findsOneWidget);
   });
 }

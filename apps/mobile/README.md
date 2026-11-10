@@ -1,6 +1,8 @@
 # LabOdc Flutter client
 
-The mobile client currently implements the Talent login/session, profile and public project discovery slices. It uses the same REST endpoints and response contracts as the web client.
+The mobile client implements Talent login/session, profile, public project
+discovery, applications, and assigned team work/report flows. It uses the
+existing REST endpoints and response contracts shared with the web client.
 
 ## Requirements
 
@@ -42,7 +44,35 @@ logout/session revocation behavior must be verified with the API owner.
 - `GET /auth/me`, `POST /auth/logout`
 - `GET /talent/me/profile`, `PUT /talent/me/profile`
 - `GET /talent/discovery/projects` and `GET /talent/discovery/projects/:projectId`
+- `POST /projects/:projectId/applications`
+- `GET /talent/me/applications`, `POST /applications/:applicationId/withdraw`
+- `GET /talent/me/team`, `GET /talent/me/tasks`
+- `POST /talent/tasks/:taskId/start`
+- `POST /talent/tasks/:taskId/submissions`
+- `GET /talent/me/reports`, `POST /talent/me/reports`
+- `POST /reports/:reportId/submit`
+- `POST /files/upload-intents`, `POST /files/:fileId/complete`
+- `GET /tasks/:taskId/files`, `GET /reports/:reportId/files`
+- `GET /files/:fileId/download`
 
 Project discovery accepts `keyword`, `skill`, `page`, and `pageSize`; the API
 returns only published projects whose recruitment window is open. The API
 limits `pageSize` to 50.
+
+Application submission is protected against repeated taps in the UI and uses
+the server's active-application conflict response as the source of truth. If a
+network timeout leaves the outcome uncertain, the app asks the Talent to check
+the application list before trying again; it does not silently repeat a
+potentially completed write.
+
+The work screen shows the Talent's team/project, tasks, and team reports.
+Task start/submission follows the API state machine, and report creation and
+submission controls are shown only to the current team leader. Server-side
+authorization and validation remain authoritative.
+
+Task/report attachments use the existing private Cloudinary flow: the app
+requests a signed upload intent from the API, uploads the selected PDF/DOCX/
+XLSX/CSV directly to the HTTPS Cloudinary endpoint, then asks the API to verify
+and complete the upload. Download URLs are issued by the API for the
+authenticated user and opened externally; the client does not persist or
+publish Cloudinary URLs. The API's 20 MiB limit is also enforced before upload.

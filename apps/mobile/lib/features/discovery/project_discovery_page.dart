@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/api_client.dart';
+import '../applications/application_repository.dart';
 import 'project_repository.dart';
 
 class ProjectDiscoveryPage extends StatefulWidget {
-  const ProjectDiscoveryPage({required this.repository, super.key});
+  const ProjectDiscoveryPage({
+    required this.repository,
+    this.applicationRepository,
+    this.accessToken,
+    super.key,
+  });
 
   final ProjectRepository repository;
+  final ApplicationRepository? applicationRepository;
+  final String? accessToken;
 
   @override
   State<ProjectDiscoveryPage> createState() => _ProjectDiscoveryPageState();
@@ -57,42 +66,13 @@ class _ProjectDiscoveryPageState extends State<ProjectDiscoveryPage> {
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        builder: (context) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    project.title,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text('${project.companyName} · ${project.code}'),
-                  const SizedBox(height: 12),
-                  Text(project.summary),
-                  if (project.description?.isNotEmpty ?? false) ...[
-                    const SizedBox(height: 12),
-                    Text(project.description!),
-                  ],
-                  if (project.deliverables?.isNotEmpty ?? false) ...[
-                    const SizedBox(height: 12),
-                    Text('Đầu ra: ${project.deliverables}'),
-                  ],
-                  const SizedBox(height: 12),
-                  Text(
-                    'Quy mô: ${project.minTeamSize}–${project.maxTeamSize} thành viên',
-                  ),
-                  Text('Thời lượng: ${project.durationWeeks} tuần'),
-                  Text(
-                    'Kỹ năng: ${project.requiredSkills.join(', ')}',
-                  ),
-                ],
-              ),
-            ),
-          ),
+        builder: (context) => _ProjectDetailsSheet(
+          project: project,
+          onApply: widget.applicationRepository == null ||
+                  widget.accessToken == null
+              ? null
+              : (_) => widget.applicationRepository!
+                  .submit(project.id, widget.accessToken!),
         ),
       );
     } catch (error) {
@@ -238,6 +218,122 @@ class _ProjectDiscoveryPageState extends State<ProjectDiscoveryPage> {
         if (_loading && result != null)
           const LinearProgressIndicator(key: ValueKey('project-refreshing')),
       ],
+    );
+  }
+}
+
+class _ProjectDetailsSheet extends StatefulWidget {
+  const _ProjectDetailsSheet({required this.project, required this.onApply});
+
+  final PublicProject project;
+  final Future<void> Function(PublicProject project)? onApply;
+
+  @override
+  State<_ProjectDetailsSheet> createState() => _ProjectDetailsSheetState();
+}
+
+class _ProjectDetailsSheetState extends State<_ProjectDetailsSheet> {
+  bool _applying = false;
+  String? _error;
+  String? _success;
+
+  Future<void> _apply() async {
+    final onApply = widget.onApply;
+    if (onApply == null || _applying) return;
+    setState(() {
+      _applying = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      await onApply(widget.project);
+      if (mounted) setState(() => _success = 'Đơn ứng tuyển đã được gửi.');
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is ApiException && error.statusCode == 409
+          ? 'Bạn đã có đơn đang xử lý hoặc dự án vừa đóng nhận đơn. Kiểm tra mục Ứng tuyển để xác nhận trạng thái.'
+          : error is ApiException && error.statusCode == 0
+              ? 'Chưa xác định được yêu cầu đã hoàn tất hay chưa. Kiểm tra mục Ứng tuyển trước khi thử lại.'
+              : error.toString();
+      setState(() => _error = message);
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final project = widget.project;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                project.title,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text('${project.companyName} · ${project.code}'),
+              const SizedBox(height: 12),
+              Text(project.summary),
+              if (project.description?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 12),
+                Text(project.description!),
+              ],
+              if (project.deliverables?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 12),
+                Text('Đầu ra: ${project.deliverables}'),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                'Quy mô: ${project.minTeamSize}–${project.maxTeamSize} thành viên',
+              ),
+              Text('Thời lượng: ${project.durationWeeks} tuần'),
+              Text('Kỹ năng: ${project.requiredSkills.join(', ')}'),
+              if (_error != null || _success != null) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error ?? _success!,
+                    key: ValueKey(
+                      _error == null
+                          ? 'application-submit-success'
+                          : 'application-submit-error',
+                    ),
+                    style: TextStyle(
+                      color: _error == null
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+              if (widget.onApply != null) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('apply-to-project'),
+                    onPressed: _applying ? null : _apply,
+                    child: _applying
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Ứng tuyển dự án'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

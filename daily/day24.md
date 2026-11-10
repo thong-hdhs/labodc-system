@@ -36,3 +36,15 @@
 | :--- | :--- | :--- | :---: |
 | **Unit-DEFENSE-D24-01** | *Given* Sổ cái đã được niêm phong `SEAL-D24-001`, *When* có mẫu đo SLA vi phạm ngưỡng hoặc `LAB_ADMIN` cố ký quyết định Hội đồng Gate D24, *Then* chặn `409 Conflict` / `403 Forbidden`. | `409 Conflict` / `403 Forbidden` | **PASS** |
 | **TC-DEFENSE-D24-01** | *Given* `LAB_ADMIN` niêm phong sổ cái `POST /academic-defense/ledger-seals` (`escrowHeldBalanceVnd === 0`, `invariantVerified === true`), *When* `SYSTEM_ADMIN` ký `POST /academic-defense/gate-d24-verdict`, *Then* cấp mã `COUNCIL-D24-VERDICT-001` (`APPROVED_WITH_DISTINCTION`). | `201 Created` + `GATE_D24_ACADEMIC_COUNCIL_DEFENSE_AND_LEDGER_SEAL` Passed | **PASS** |
+
+---
+
+## Phần triển khai của Sinh viên B — Dự án, nhiệm vụ và báo cáo trên Flutter
+
+- Tích hợp các API Talent hiện có để hiển thị nhóm và dự án được phân công (`GET /api/v1/talent/me/team`), nhiệm vụ của nhóm (`GET /api/v1/talent/me/tasks`) và báo cáo nhóm (`GET /api/v1/talent/me/reports`).
+- Cho phép thành viên được giao bắt đầu task và nộp kết quả theo state machine hiện có; task chưa giao hoặc giao cá nhân cho người khác không có action khả dụng trên client. Trạng thái sau ghi được đọc lại từ API.
+- Cho phép đúng Team Leader hiện tại tạo báo cáo tháng dạng nháp và gửi báo cáo nháp/cần chỉnh sửa. UI kiểm tra trường bắt buộc, khoảng ngày và giới hạn nội dung; backend vẫn là nguồn xác thực/ủy quyền cuối cùng.
+- Nối tài liệu Task/Report với private Cloudinary API đã triển khai ở D19: list theo resource, upload signed intent → HTTPS multipart → API verify/complete, và lấy URL download tạm thời qua API. Chỉ hiển thị thao tác upload theo quan hệ assignee/Team Leader-author; kiểm tra loại PDF/DOCX/XLSX/CSV và giới hạn 20 MiB trước khi gửi.
+- Thêm API repository tests và widget tests cho nhóm, task transitions, trạng thái báo cáo và giới hạn action theo vai trò. Mọi endpoint trên đã có sẵn; không chỉnh sửa backend/schema của A.
+- Regression toàn bộ API hiện có: `npm test --workspace @labodc/api -- --runInBand` — 41 suites / 102 tests PASS. `git diff --check` và VS Code diagnostics trên mobile source — không phát hiện lỗi; đây không thay thế Dart analyzer.
+- Build/analyze/test Flutter và device test chưa thể chạy vì máy không có Flutter/Dart/Android SDK. Vì vậy không ghi nhận mobile test/build là PASS; cần chạy trên SDK/emulator trước nghiệm thu.
