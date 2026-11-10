@@ -15,6 +15,10 @@ import { ProductionGoliveController } from './production-golive.controller';
 import { ProductionGoliveService } from './production-golive.service';
 import { FinalArchivalController } from './final-archival.controller';
 import { FinalArchivalService } from './final-archival.service';
+import { PostGoliveHypercareController } from './post-golive-hypercare.controller';
+import { PostGoliveHypercareService } from './post-golive-hypercare.service';
+import { AcademicDefenseController } from './academic-defense.controller';
+import { AcademicDefenseService } from './academic-defense.service';
 
 @Module({
   imports: [AuthModule, EnterpriseModule, ProjectsModule, PaymentsModule],
@@ -25,6 +29,8 @@ import { FinalArchivalService } from './final-archival.service';
     ReleaseHandoverController,
     ProductionGoliveController,
     FinalArchivalController,
+    PostGoliveHypercareController,
+    AcademicDefenseController,
   ],
   providers: [
     SystemAdminService,
@@ -33,6 +39,8 @@ import { FinalArchivalService } from './final-archival.service';
     ReleaseHandoverService,
     ProductionGoliveService,
     FinalArchivalService,
+    PostGoliveHypercareService,
+    AcademicDefenseService,
   ],
   exports: [
     SystemAdminService,
@@ -41,6 +49,8 @@ import { FinalArchivalService } from './final-archival.service';
     ReleaseHandoverService,
     ProductionGoliveService,
     FinalArchivalService,
+    PostGoliveHypercareService,
+    AcademicDefenseService,
   ],
 })
 export class SystemAdminModule {}
