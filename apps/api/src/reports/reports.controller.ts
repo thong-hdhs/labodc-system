@@ -15,6 +15,7 @@ import {
   CreateContributionInput,
   CreateEvaluationInput,
   ReportContentInput,
+  TeamAllocationProposalInput,
 } from './report.types';
 import { ReportsService } from './reports.service';
 
@@ -146,6 +147,29 @@ export class ReportsController {
     return this.reports.finalizeEvaluation(user, evaluationId);
   }
 
+  @Post('talent/evaluations/:evaluationId/acknowledge')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  acknowledgeEvaluation(
+    @CurrentUser() user: JwtPayload,
+    @Param('evaluationId') evaluationId: string,
+  ) {
+    return this.reports.acknowledgeEvaluation(user, evaluationId);
+  }
+
+  @Post('talent/evaluations/:evaluationId/feedback')
+  @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
+  submitEvaluationFeedback(
+    @CurrentUser() user: JwtPayload,
+    @Param('evaluationId') evaluationId: string,
+    @Body() input: { feedback?: unknown },
+  ) {
+    return this.reports.submitEvaluationFeedback(
+      user,
+      evaluationId,
+      input?.feedback,
+    );
+  }
+
   @Get('mentor/projects/:projectId/evaluations')
   @Roles(UserRole.MENTOR)
   listMentorEvaluations(
@@ -202,5 +226,88 @@ export class ReportsController {
   @Roles(UserRole.TALENT, UserRole.TALENT_LEADER)
   listTalentContributions(@CurrentUser() user: JwtPayload) {
     return this.reports.listTalentContributions(user);
+  }
+
+  @Get('talent/me/team/allocation-proposals')
+  @Roles(UserRole.TALENT_LEADER)
+  listLeaderAllocationProposals(@CurrentUser() user: JwtPayload) {
+    return this.reports.listLeaderAllocationProposals(user);
+  }
+
+  @Post('talent/me/team/allocation-proposals')
+  @Roles(UserRole.TALENT_LEADER)
+  createAllocationProposal(
+    @CurrentUser() user: JwtPayload,
+    @Body() input: TeamAllocationProposalInput,
+  ) {
+    return this.reports.createAllocationProposal(user, input);
+  }
+
+  @Patch('talent/me/team/allocation-proposals/:proposalId')
+  @Roles(UserRole.TALENT_LEADER)
+  updateAllocationProposal(
+    @CurrentUser() user: JwtPayload,
+    @Param('proposalId') proposalId: string,
+    @Body() input: TeamAllocationProposalInput,
+  ) {
+    return this.reports.updateAllocationProposal(user, proposalId, input);
+  }
+
+  @Get('mentor/teams/:teamId/allocation-proposals')
+  @Roles(UserRole.MENTOR)
+  listMentorAllocationProposals(
+    @CurrentUser() user: JwtPayload,
+    @Param('teamId') teamId: string,
+  ) {
+    return this.reports.listMentorAllocationProposals(user, teamId);
+  }
+
+  @Post('mentor/allocation-proposals/:proposalId/approve')
+  @Roles(UserRole.MENTOR)
+  approveAllocationProposal(
+    @CurrentUser() user: JwtPayload,
+    @Param('proposalId') proposalId: string,
+  ) {
+    return this.reports.approveAllocationProposal(user, proposalId);
+  }
+
+  @Post('mentor/allocation-proposals/:proposalId/request-changes')
+  @Roles(UserRole.MENTOR)
+  requestAllocationProposalChanges(
+    @CurrentUser() user: JwtPayload,
+    @Param('proposalId') proposalId: string,
+    @Body() input: { note?: unknown },
+  ) {
+    return this.reports.requestAllocationProposalChanges(
+      user,
+      proposalId,
+      input?.note,
+    );
+  }
+
+  @Get('talent/me/team/performance')
+  @Roles(UserRole.TALENT_LEADER)
+  getLeaderTeamPerformance(
+    @CurrentUser() user: JwtPayload,
+    @Query('periodStart') periodStart: string,
+    @Query('periodEnd') periodEnd: string,
+  ) {
+    return this.reports.getLeaderTeamPerformance(user, periodStart, periodEnd);
+  }
+
+  @Get('mentor/teams/:teamId/performance')
+  @Roles(UserRole.MENTOR)
+  getMentorTeamPerformance(
+    @CurrentUser() user: JwtPayload,
+    @Param('teamId') teamId: string,
+    @Query('periodStart') periodStart: string,
+    @Query('periodEnd') periodEnd: string,
+  ) {
+    return this.reports.getMentorTeamPerformance(
+      user,
+      teamId,
+      periodStart,
+      periodEnd,
+    );
   }
 }

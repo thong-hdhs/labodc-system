@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_models.dart';
+import '../../core/files/private_file_repository.dart';
 import 'talent_repository.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({
     required this.session,
     required this.repository,
+    required this.fileRepository,
     super.key,
   });
 
   final AuthSession session;
   final TalentRepository repository;
+  final ProfileFileStore fileRepository;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -29,6 +32,10 @@ class _ProfilePageState extends State<ProfilePage> {
   final _certifications = TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  bool _filesLoading = true;
+  bool _fileBusy = false;
+  bool _profileReady = false;
+  List<PrivateFile> _files = const [];
   String? _error;
   String? _notice;
 
@@ -55,12 +62,14 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _loading = true;
       _error = null;
+      _profileReady = false;
     });
     try {
       final profile =
           await widget.repository.getMyProfile(widget.session.accessToken);
       if (!mounted) return;
       if (profile != null) {
+        _profileReady = true;
         _studentId.text = profile.studentId;
         _fullName.text = profile.fullName;
         _faculty.text = profile.faculty ?? '';
@@ -70,6 +79,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _skills.text = profile.skills.join(', ');
         _certifications.text = profile.certifications.join(', ');
       } else {
+        _profileReady = false;
         _studentId.clear();
         _fullName.text = widget.session.user.fullName;
       }
@@ -77,6 +87,22 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+    if (!mounted) return;
+    await _loadFiles();
+  }
+
+  Future<void> _loadFiles() async {
+    if (!mounted) return;
+    setState(() => _filesLoading = true);
+    try {
+      final files =
+          await widget.fileRepository.listMine(widget.session.accessToken);
+      if (mounted) setState(() => _files = files);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _filesLoading = false);
     }
   }
 
@@ -99,11 +125,54 @@ class _ProfilePageState extends State<ProfilePage> {
         skills: _splitList(_skills.text),
         certifications: _splitList(_certifications.text),
       );
-      if (mounted) setState(() => _notice = 'Đã lưu hồ sơ Talent.');
+      if (mounted) {
+        setState(() {
+          _profileReady = true;
+          _notice = 'Đã lưu hồ sơ Talent.';
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _upload(bool avatar) async {
+    setState(() {
+      _fileBusy = true;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      final file = avatar
+          ? await widget.fileRepository
+              .pickAndUploadAvatar(widget.session.accessToken)
+          : await widget.fileRepository
+              .pickAndUploadPortfolio(widget.session.accessToken);
+      if (file != null && mounted) {
+        setState(() => _notice = 'Đã tải lên ${file.fileName}.');
+        await _loadFiles();
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _fileBusy = false);
+    }
+  }
+
+  Future<void> _download(PrivateFile file) async {
+    setState(() {
+      _error = null;
+      _notice = null;
+    });
+    try {
+      await widget.fileRepository.openDownload(
+        file.id,
+        widget.session.accessToken,
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
     }
   }
 
@@ -164,6 +233,55 @@ class _ProfilePageState extends State<ProfilePage> {
                       : const Text('Lưu hồ sơ'),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text('Tài liệu hồ sơ', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          const Text('Ảnh đại diện tối đa 5 MiB; portfolio tối đa 10 MiB.'),
+          if (!_profileReady)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Lưu hồ sơ trước khi tải tệp lên.'),
+            ),
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed:
+                    _profileReady && !_fileBusy ? () => _upload(true) : null,
+                icon: const Icon(Icons.account_circle_outlined),
+                label: const Text('Tải ảnh đại diện'),
+              ),
+              OutlinedButton.icon(
+                onPressed:
+                    _profileReady && !_fileBusy ? () => _upload(false) : null,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Tải portfolio'),
+              ),
+            ],
+          ),
+          if (_fileBusy || _filesLoading)
+            const Center(child: CircularProgressIndicator()),
+          if (!_filesLoading && _files.isEmpty)
+            const Text('Chưa có tệp hồ sơ.'),
+          ..._files.map(
+            (file) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                file.category == 'AVATAR'
+                    ? Icons.account_circle_outlined
+                    : Icons.description_outlined,
+              ),
+              title: Text(file.fileName),
+              subtitle: Text(
+                '${file.category} · ${(file.sizeBytes / (1024 * 1024)).toStringAsFixed(2)} MiB',
+              ),
+              trailing: IconButton(
+                tooltip: 'Tải xuống ${file.fileName}',
+                onPressed: () => _download(file),
+                icon: const Icon(Icons.download),
+              ),
             ),
           ),
         ],

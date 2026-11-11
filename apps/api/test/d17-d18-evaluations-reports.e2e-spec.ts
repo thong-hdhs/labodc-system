@@ -270,6 +270,116 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
       .expect(400);
   });
 
+  it('lets the evaluated Talent acknowledge a final evaluation and submit one private reply', async () => {
+    const evaluation = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/evaluations`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send(evaluationInput(talentId))
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/acknowledge`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/feedback`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ feedback: 'Cảm ơn phản hồi.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/acknowledge`)
+      .set('Authorization', `Bearer ${otherTalentToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/evaluations/${evaluation.body.id}/finalize`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/feedback`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ feedback: '   ' })
+      .expect(400);
+
+    const acknowledged = await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/acknowledge`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    expect(acknowledged.body.candidateAcknowledgedAt).toBeTruthy();
+    expect(
+      acknowledged.body.events.map((event: { action: string }) => event.action),
+    ).toEqual(['FINALIZED', 'CANDIDATE_ACKNOWLEDGED']);
+
+    const repeatedAcknowledgement = await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/acknowledge`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(201);
+    expect(repeatedAcknowledgement.body.candidateAcknowledgedAt).toBe(
+      acknowledged.body.candidateAcknowledgedAt,
+    );
+    expect(repeatedAcknowledgement.body.events).toHaveLength(2);
+
+    const feedback = await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/feedback`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ feedback: '  Cảm ơn Mentor, tôi sẽ cải thiện phần này.  ' })
+      .expect(201);
+    expect(feedback.body).toMatchObject({
+      candidateAcknowledgedAt: acknowledged.body.candidateAcknowledgedAt,
+      candidateFeedback: 'Cảm ơn Mentor, tôi sẽ cải thiện phần này.',
+    });
+    expect(feedback.body.candidateFeedbackAt).toBeTruthy();
+    expect(feedback.body.events.map((event: { action: string }) => event.action))
+      .toEqual([
+        'FINALIZED',
+        'CANDIDATE_ACKNOWLEDGED',
+        'CANDIDATE_FEEDBACK_SUBMITTED',
+      ]);
+    await request(app.getHttpServer())
+      .post(`/api/v1/talent/evaluations/${evaluation.body.id}/feedback`)
+      .set('Authorization', `Bearer ${talentToken}`)
+      .send({ feedback: 'Một phản hồi trùng.' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/evaluations')
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toEqual([
+          expect.objectContaining({
+            id: evaluation.body.id,
+            candidateFeedback: 'Cảm ơn Mentor, tôi sẽ cải thiện phần này.',
+          }),
+        ]),
+      );
+    await request(app.getHttpServer())
+      .get(`/api/v1/mentor/projects/${projectId}/evaluations`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body[0]).toEqual(
+          expect.objectContaining({
+            id: evaluation.body.id,
+            candidateAcknowledgedAt: acknowledged.body.candidateAcknowledgedAt,
+            candidateFeedback: 'Cảm ơn Mentor, tôi sẽ cải thiện phần này.',
+          }),
+        ),
+      );
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/evaluations')
+      .set('Authorization', `Bearer ${otherTalentToken}`)
+      .expect(200)
+      .expect(({ body }) => expect(body).toEqual([]));
+    await request(app.getHttpServer())
+      .get(`/api/v1/lab-admin/evaluations?projectId=${projectId}`)
+      .set('Authorization', `Bearer ${labAdminToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body[0]).not.toHaveProperty('candidateAcknowledgedAt');
+        expect(body[0]).not.toHaveProperty('candidateFeedback');
+        expect(body[0]).not.toHaveProperty('events');
+      });
+  });
+
   it('records contributions only for Team members and scopes talent visibility to self', async () => {
     const contribution = await request(app.getHttpServer())
       .post(`/api/v1/mentor/projects/${projectId}/contributions`)
@@ -312,6 +422,185 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
       .get('/api/v1/talent/me/contributions')
       .set('Authorization', `Bearer ${enterpriseToken}`)
       .expect(403);
+  });
+
+  it('creates, revisions, reviews and audits a bounded internal allocation proposal', async () => {
+    const invalidSplit = allocationInput();
+    invalidSplit.allocations[0].shareBps = 3999;
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(invalidSplit)
+      .expect(400);
+
+    const outsiderAllocation = allocationInput();
+    outsiderAllocation.allocations[2].userId = outsiderId;
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(outsiderAllocation)
+      .expect(400);
+
+    const duplicateAllocation = allocationInput();
+    duplicateAllocation.allocations[1].userId = leaderId;
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(duplicateAllocation)
+      .expect(400);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(allocationInput())
+      .expect(201);
+    expect(created.body).toMatchObject({
+      teamId,
+      projectId,
+      proposerUserId: leaderId,
+      reviewerUserId: mentorId,
+      status: 'PENDING',
+    });
+    expect(created.body.allocations.reduce(
+      (total: number, item: { shareBps: number }) => total + item.shareBps,
+      0,
+    )).toBe(10000);
+    expect(created.body.events.map((event: { action: string }) => event.action))
+      .toEqual(['CREATED']);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(allocationInput())
+      .expect(409);
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(allocationInput('2026-10-15', '2026-11-14'))
+      .expect(409);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get(`/api/v1/mentor/teams/${teamId}/allocation-proposals`)
+      .set('Authorization', `Bearer ${unassignedMentorToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/allocation-proposals/${created.body.id}/approve`)
+      .set('Authorization', `Bearer ${unassignedMentorToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/allocation-proposals/${created.body.id}/request-changes`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({ note: 'Cần làm rõ cơ sở chia tỷ lệ.' })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          status: 'CHANGES_REQUESTED',
+          reviewNote: 'Cần làm rõ cơ sở chia tỷ lệ.',
+        }),
+      );
+
+    const revised = await request(app.getHttpServer())
+      .patch(`/api/v1/talent/me/team/allocation-proposals/${created.body.id}`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send({ ...allocationInput(), rationale: 'Đã bổ sung căn cứ phân bổ.' })
+      .expect(200);
+    expect(revised.body.status).toBe('PENDING');
+    expect(revised.body.reviewNote).toBeNull();
+    expect(revised.body.events.map((event: { action: string }) => event.action))
+      .toEqual(['CREATED', 'CHANGES_REQUESTED', 'UPDATED']);
+
+    const approved = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/allocation-proposals/${created.body.id}/approve`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(201);
+    expect(approved.body.status).toBe('APPROVED');
+    await request(app.getHttpServer())
+      .patch(`/api/v1/talent/me/team/allocation-proposals/${created.body.id}`)
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(allocationInput())
+      .expect(409);
+  });
+
+  it('blocks approval of stale Team membership and summarizes only finalized evaluation counts', async () => {
+    const contribution = {
+      userId: talentId,
+      periodStart: '2026-10-10',
+      periodEnd: '2026-10-12',
+      description: 'Đóng góp cho API.',
+    };
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/contributions`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send(contribution)
+      .expect(201);
+    const finalized = await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/evaluations`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send({
+        ...evaluationInput(talentId),
+        overallFeedback: 'Nội dung đánh giá riêng tư.',
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/evaluations/${finalized.body.id}/finalize`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/projects/${projectId}/evaluations`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .send(evaluationInput(otherTalentId))
+      .expect(201);
+
+    const summary = await request(app.getHttpServer())
+      .get('/api/v1/talent/me/team/performance?periodStart=2026-10-01&periodEnd=2026-10-31')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(200);
+    expect(summary.body.totals).toEqual({
+      contributionCount: 1,
+      finalizedEvaluationCount: 1,
+    });
+    expect(summary.body.members).toContainEqual(
+      expect.objectContaining({
+        userId: talentId,
+        contributionCount: 1,
+        finalizedEvaluationCount: 1,
+      }),
+    );
+    expect(JSON.stringify(summary.body)).not.toContain('Nội dung đánh giá riêng tư.');
+    await request(app.getHttpServer())
+      .get(`/api/v1/mentor/teams/${teamId}/performance?periodStart=2026-10-01&periodEnd=2026-10-31`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.totals).toEqual({
+          contributionCount: 1,
+          finalizedEvaluationCount: 1,
+        }),
+      );
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/team/performance?periodStart=2026-10-31&periodEnd=2026-10-01')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/me/team/performance?periodStart=2026-10-01&periodEnd=2026-10-31')
+      .set('Authorization', `Bearer ${talentToken}`)
+      .expect(403);
+
+    const stale = await request(app.getHttpServer())
+      .post('/api/v1/talent/me/team/allocation-proposals')
+      .set('Authorization', `Bearer ${leaderToken}`)
+      .send(allocationInput('2026-11-01', '2026-11-30'))
+      .expect(201);
+    const team = teams.findById(teamId);
+    if (!team) throw new Error('Test Team missing.');
+    teams.removeMember(team, otherTalentId, mentorId);
+    await request(app.getHttpServer())
+      .post(`/api/v1/mentor/allocation-proposals/${stale.body.id}/approve`)
+      .set('Authorization', `Bearer ${mentorToken}`)
+      .expect(409);
   });
 
   it('runs report submit, review, changes-requested, resubmit, version and history transitions', async () => {
@@ -577,6 +866,22 @@ describe('Day 17-18 — Evaluations, contributions and progress reports', () => 
         expiresIn: '15m',
       },
     );
+  }
+
+  function allocationInput(
+    periodStart = '2026-10-01',
+    periodEnd = '2026-10-31',
+  ) {
+    return {
+      periodStart,
+      periodEnd,
+      allocations: [
+        { userId: leaderId, shareBps: 4000 },
+        { userId: talentId, shareBps: 3000 },
+        { userId: otherTalentId, shareBps: 3000 },
+      ],
+      rationale: 'Phân bổ theo khối lượng đóng góp đã ghi nhận.',
+    };
   }
 
   function evaluationInput(subjectUserId: string) {

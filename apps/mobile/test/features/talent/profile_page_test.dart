@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labodc_mobile/core/auth/auth_models.dart';
+import 'package:labodc_mobile/core/files/private_file_repository.dart';
 import 'package:labodc_mobile/features/talent/profile_page.dart';
 import 'package:labodc_mobile/features/talent/talent_repository.dart';
 
@@ -40,6 +41,34 @@ class FakeTalentRepository implements TalentRepository {
   }
 }
 
+class FakeProfileFileStore implements ProfileFileStore {
+  List<PrivateFile> files = const [];
+  int avatarUploads = 0;
+
+  @override
+  Future<List<PrivateFile>> listMine(String accessToken) async => files;
+
+  @override
+  Future<PrivateFile?> pickAndUploadAvatar(String accessToken) async {
+    avatarUploads++;
+    const file = PrivateFile(
+      id: 'avatar-1',
+      category: 'AVATAR',
+      fileName: 'avatar.png',
+      sizeBytes: 1024,
+      status: 'UPLOADED',
+    );
+    files = [file];
+    return file;
+  }
+
+  @override
+  Future<PrivateFile?> pickAndUploadPortfolio(String accessToken) async => null;
+
+  @override
+  Future<void> openDownload(String fileId, String accessToken) async {}
+}
+
 void main() {
   const session = AuthSession(
     accessToken: 'access-token',
@@ -68,7 +97,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ProfilePage(session: session, repository: repository),
+          body: ProfilePage(
+            session: session,
+            repository: repository,
+            fileRepository: FakeProfileFileStore(),
+          ),
         ),
       ),
     );
@@ -92,12 +125,52 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ProfilePage(session: session, repository: repository),
+          body: ProfilePage(
+            session: session,
+            repository: repository,
+            fileRepository: FakeProfileFileStore(),
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.textContaining('profile unavailable'), findsOneWidget);
+  });
+
+  testWidgets('requires a saved profile before upload and lists its private file',
+      (tester) async {
+    final repository = FakeTalentRepository();
+    final files = FakeProfileFileStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProfilePage(
+            session: session,
+            repository: repository,
+            fileRepository: files,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatarButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Tải ảnh đại diện'),
+    );
+    expect(avatarButton.onPressed, isNull);
+    expect(find.text('Lưu hồ sơ trước khi tải tệp lên.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'S123');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Talent Student');
+    await tester.tap(find.text('Lưu hồ sơ'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Tải ảnh đại diện'));
+    await tester.tap(find.text('Tải ảnh đại diện'));
+    await tester.pumpAndSettle();
+
+    expect(files.avatarUploads, 1);
+    expect(find.text('avatar.png'), findsOneWidget);
+    expect(find.text('Đã tải lên avatar.png.'), findsOneWidget);
   });
 }

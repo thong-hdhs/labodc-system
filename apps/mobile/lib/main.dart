@@ -6,11 +6,14 @@ import 'core/api/api_client.dart';
 import 'core/auth/auth_models.dart';
 import 'core/auth/auth_repository.dart';
 import 'core/auth/secure_token_store.dart';
+import 'core/files/private_file_repository.dart';
 import 'features/applications/application_page.dart';
 import 'features/applications/application_repository.dart';
 import 'features/auth/login_page.dart';
 import 'features/discovery/project_discovery_page.dart';
 import 'features/discovery/project_repository.dart';
+import 'features/evaluations/evaluation_repository.dart';
+import 'features/evaluations/evaluations_page.dart';
 import 'features/talent/profile_page.dart';
 import 'features/talent/talent_repository.dart';
 import 'features/work/work_page.dart';
@@ -20,13 +23,16 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final api = ApiClient();
   final storage = FlutterSecureTokenStore();
+  final files = PrivateFileRepository(api);
   runApp(
     LabOdcMobileApp(
       authRepository: AuthRepository(api: api, storage: storage),
       talentRepository: TalentRepository(api),
       projectRepository: ProjectRepository(api),
       applicationRepository: ApplicationRepository(api),
-      workRepository: WorkRepository(api),
+      evaluationRepository: EvaluationRepository(api),
+      workRepository: WorkRepository(api, fileRepository: files),
+      fileRepository: files,
     ),
   );
 }
@@ -37,7 +43,9 @@ class LabOdcMobileApp extends StatefulWidget {
     required this.talentRepository,
     required this.projectRepository,
     required this.applicationRepository,
+    required this.evaluationRepository,
     required this.workRepository,
+    required this.fileRepository,
     super.key,
   });
 
@@ -45,7 +53,9 @@ class LabOdcMobileApp extends StatefulWidget {
   final TalentRepository talentRepository;
   final ProjectRepository projectRepository;
   final ApplicationRepository applicationRepository;
+  final EvaluationRepository evaluationRepository;
   final WorkRepository workRepository;
+  final ProfileFileStore fileRepository;
 
   @override
   State<LabOdcMobileApp> createState() => _LabOdcMobileAppState();
@@ -121,7 +131,9 @@ class _LabOdcMobileAppState extends State<LabOdcMobileApp> {
                   talentRepository: widget.talentRepository,
                   projectRepository: widget.projectRepository,
                   applicationRepository: widget.applicationRepository,
+                  evaluationRepository: widget.evaluationRepository,
                   workRepository: widget.workRepository,
+                  fileRepository: widget.fileRepository,
                   onLogout: _logout,
                 ),
     );
@@ -134,7 +146,9 @@ class _TalentHome extends StatefulWidget {
     required this.talentRepository,
     required this.projectRepository,
     required this.applicationRepository,
+    required this.evaluationRepository,
     required this.workRepository,
+    required this.fileRepository,
     required this.onLogout,
   });
 
@@ -142,7 +156,9 @@ class _TalentHome extends StatefulWidget {
   final TalentRepository talentRepository;
   final ProjectRepository projectRepository;
   final ApplicationRepository applicationRepository;
+  final EvaluationRepository evaluationRepository;
   final WorkRepository workRepository;
+  final ProfileFileStore fileRepository;
   final Future<void> Function() onLogout;
 
   @override
@@ -165,6 +181,7 @@ class _TalentHomeState extends State<_TalentHome> {
       ProfilePage(
         session: widget.session,
         repository: widget.talentRepository,
+        fileRepository: widget.fileRepository,
       ),
       ProjectDiscoveryPage(
         repository: widget.projectRepository,
@@ -173,6 +190,10 @@ class _TalentHomeState extends State<_TalentHome> {
       ),
       ApplicationPage(
         repository: widget.applicationRepository,
+        accessToken: widget.session.accessToken,
+      ),
+      EvaluationsPage(
+        repository: widget.evaluationRepository,
         accessToken: widget.session.accessToken,
       ),
       WorkPage(
@@ -217,6 +238,10 @@ class _TalentHomeState extends State<_TalentHome> {
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             label: 'Ứng tuyển',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.rate_review_outlined),
+            label: 'Đánh giá',
           ),
           NavigationDestination(
             icon: Icon(Icons.work_outline),

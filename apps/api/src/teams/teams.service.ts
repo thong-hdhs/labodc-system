@@ -235,6 +235,15 @@ export class TeamsService {
     return team;
   }
 
+  getAssignedMentorUserId(projectId: string): string {
+    const assignment = this.mentorAssignmentRepository.findByProject(projectId);
+    if (!assignment) throw new NotFoundException('Dự án chưa được phân công Mentor.');
+    if (!this.projectRepository.findById(projectId)) {
+      throw new NotFoundException('Không tìm thấy dự án.');
+    }
+    return assignment.mentorUserId;
+  }
+
   findTeamForMember(userId: string): TeamEntity | null {
     return this.teamRepository.findByMember(userId);
   }

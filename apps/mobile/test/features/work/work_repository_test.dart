@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:labodc_mobile/core/api/api_client.dart';
+import 'package:labodc_mobile/core/files/private_file_repository.dart';
 import 'package:labodc_mobile/features/work/work_repository.dart';
 
 void main() {
@@ -185,6 +186,7 @@ void main() {
         return http.Response(
           jsonEncode({
             'id': 'file-1',
+            'category': 'TASK_DOCUMENT',
             'fileName': 'deliverable.pdf',
             'sizeBytes': 4,
             'status': 'UPLOADED',
@@ -202,7 +204,10 @@ void main() {
       expect(multipart.files.single.filename, 'deliverable.pdf');
       return http.Response('{}', 200);
     });
-    final repository = WorkRepository(api, uploadClient: uploadClient);
+    final repository = WorkRepository(
+      api,
+      fileRepository: PrivateFileRepository(api, uploadClient: uploadClient),
+    );
 
     final file = await repository.uploadTaskDocument(
       taskId: 'task-1',

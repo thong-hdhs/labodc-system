@@ -16,6 +16,9 @@ import {
   ProgressReport,
   ReportContentInput,
   ReportStatus,
+  TeamAllocationProposal,
+  TeamAllocationProposalInput,
+  TeamPerformanceSummary,
 } from './report.types';
 
 const REPORT_TEXT_LIMIT = 5000;
@@ -260,7 +263,36 @@ export class ReportsService {
     if (evaluation.criteria.length === 0 || !evaluation.overallFeedback.trim()) {
       throw new BadRequestException('Cần có rubric và phản hồi tổng quan trước khi chốt.');
     }
-    return this.repository.finalizeEvaluation(evaluationId);
+    return this.repository.finalizeEvaluation(evaluationId, user.sub);
+  }
+
+  acknowledgeEvaluation(user: JwtPayload, evaluationId: string) {
+    const evaluation = this.getEvaluation(evaluationId);
+    this.assertEvaluationSubject(user, evaluation.subjectUserId);
+    if (evaluation.status !== 'EVALUATION_FINAL') {
+      throw new ConflictException('Chỉ có thể xác nhận đánh giá đã được Mentor chốt.');
+    }
+    return this.repository.acknowledgeEvaluation(evaluationId, user.sub);
+  }
+
+  submitEvaluationFeedback(
+    user: JwtPayload,
+    evaluationId: string,
+    feedback: unknown,
+  ) {
+    const evaluation = this.getEvaluation(evaluationId);
+    this.assertEvaluationSubject(user, evaluation.subjectUserId);
+    if (evaluation.status !== 'EVALUATION_FINAL') {
+      throw new ConflictException('Chỉ có thể phản hồi đánh giá đã được Mentor chốt.');
+    }
+    if (!this.isText(feedback, 3, FEEDBACK_LIMIT)) {
+      throw new BadRequestException('Phản hồi cần từ 3 đến 2000 ký tự.');
+    }
+    return this.repository.submitEvaluationFeedback(
+      evaluationId,
+      user.sub,
+      feedback.trim(),
+    );
   }
 
   listMentorEvaluations(user: JwtPayload, projectId: string) {
@@ -273,9 +305,23 @@ export class ReportsService {
     if (projectId && !this.projects.findById(projectId)) {
       throw new NotFoundException('Không tìm thấy dự án.');
     }
-    return projectId
+    const evaluations = projectId
       ? this.repository.findEvaluationsByProject(projectId)
       : this.repository.findAllEvaluations();
+    return evaluations.map((evaluation) => ({
+      id: evaluation.id,
+      projectId: evaluation.projectId,
+      teamId: evaluation.teamId,
+      subjectUserId: evaluation.subjectUserId,
+      mentorUserId: evaluation.mentorUserId,
+      periodStart: evaluation.periodStart,
+      periodEnd: evaluation.periodEnd,
+      criteria: evaluation.criteria,
+      overallFeedback: evaluation.overallFeedback,
+      status: evaluation.status,
+      createdAt: evaluation.createdAt,
+      finalizedAt: evaluation.finalizedAt,
+    }));
   }
 
   listTalentEvaluations(user: JwtPayload) {
@@ -327,6 +373,117 @@ export class ReportsService {
       .filter((record) => record.userId === user.sub);
   }
 
+  listLeaderAllocationProposals(user: JwtPayload) {
+    const team = this.getLeaderTeam(user);
+    return this.repository.findAllocationProposalsByTeam(team.id);
+  }
+
+  createAllocationProposal(
+    user: JwtPayload,
+    input: TeamAllocationProposalInput,
+  ): TeamAllocationProposal {
+    const team = this.getLeaderTeam(user);
+    this.validateAllocationProposalInput(
+      input,
+      team.members.map((member) => member.userId),
+    );
+    const reviewerUserId = this.teams.getAssignedMentorUserId(team.projectId);
+    return this.repository.createAllocationProposal(
+      team.projectId,
+      team.id,
+      user.sub,
+      reviewerUserId,
+      team.updatedAt,
+      team.members.map((member) => member.userId),
+      input,
+    );
+  }
+
+  updateAllocationProposal(
+    user: JwtPayload,
+    proposalId: string,
+    input: TeamAllocationProposalInput,
+  ): TeamAllocationProposal {
+    const proposal = this.getAllocationProposal(proposalId);
+    const team = this.getLeaderTeam(user);
+    if (proposal.teamId !== team.id) {
+      throw new ForbiddenException('Đề xuất không thuộc Team hiện tại của Leader.');
+    }
+    this.validateAllocationProposalInput(
+      input,
+      team.members.map((member) => member.userId),
+    );
+    const reviewerUserId = this.teams.getAssignedMentorUserId(team.projectId);
+    return this.repository.updateAllocationProposal(
+      proposalId,
+      user.sub,
+      reviewerUserId,
+      team.updatedAt,
+      team.members.map((member) => member.userId),
+      input,
+    );
+  }
+
+  listMentorAllocationProposals(user: JwtPayload, teamId: string) {
+    const team = this.teams.getMentorTeam(user, teamId);
+    return this.repository.findAllocationProposalsByTeam(team.id);
+  }
+
+  approveAllocationProposal(
+    user: JwtPayload,
+    proposalId: string,
+  ): TeamAllocationProposal {
+    const proposal = this.getAllocationProposal(proposalId);
+    this.assertAllocationProposalReviewer(user, proposal);
+    this.assertProposalTeamIsCurrent(user, proposal);
+    return this.repository.transitionAllocationProposal(
+      proposalId,
+      user.sub,
+      'APPROVED',
+      'APPROVED',
+      null,
+    );
+  }
+
+  requestAllocationProposalChanges(
+    user: JwtPayload,
+    proposalId: string,
+    note: unknown,
+  ): TeamAllocationProposal {
+    const proposal = this.getAllocationProposal(proposalId);
+    this.assertAllocationProposalReviewer(user, proposal);
+    this.assertProposalTeamIsCurrent(user, proposal);
+    if (!this.isText(note, 3, FEEDBACK_LIMIT)) {
+      throw new BadRequestException('Ghi chú yêu cầu chỉnh sửa phải từ 3 đến 2000 ký tự.');
+    }
+    return this.repository.transitionAllocationProposal(
+      proposalId,
+      user.sub,
+      'CHANGES_REQUESTED',
+      'CHANGES_REQUESTED',
+      note.trim(),
+    );
+  }
+
+  getLeaderTeamPerformance(
+    user: JwtPayload,
+    periodStart: unknown,
+    periodEnd: unknown,
+  ): TeamPerformanceSummary {
+    const team = this.getLeaderTeam(user);
+    return this.buildTeamPerformanceSummary(team, periodStart, periodEnd);
+  }
+
+  getMentorTeamPerformance(
+    user: JwtPayload,
+    teamId: string,
+    periodStart: unknown,
+    periodEnd: unknown,
+  ): TeamPerformanceSummary {
+    const team = this.teams.getMentorTeam(user, teamId);
+    return this.buildTeamPerformanceSummary(team, periodStart, periodEnd);
+  }
+
   private getReport(reportId: string): ProgressReport {
     const report = this.repository.findReportById(reportId);
     if (!report) throw new NotFoundException('Không tìm thấy báo cáo.');
@@ -337,6 +494,166 @@ export class ReportsService {
     const evaluation = this.repository.findEvaluationById(evaluationId);
     if (!evaluation) throw new NotFoundException('Không tìm thấy đánh giá.');
     return evaluation;
+  }
+
+  private getAllocationProposal(proposalId: string): TeamAllocationProposal {
+    const proposal = this.repository.findAllocationProposalById(proposalId);
+    if (!proposal) throw new NotFoundException('Không tìm thấy đề xuất phân bổ.');
+    return proposal;
+  }
+
+  private getLeaderTeam(user: JwtPayload): TeamEntity {
+    if (user.role !== UserRole.TALENT_LEADER) {
+      throw new ForbiddenException('Chỉ Leader hiện tại mới được truy cập chức năng này.');
+    }
+    const team = this.teams.getMyTeamEntity(user.sub);
+    if (
+      team.status !== 'ACTIVE' ||
+      this.teams.getTeamMemberRole(team.id, user.sub) !== 'LEADER'
+    ) {
+      throw new ForbiddenException('Chỉ Leader hiện tại của Team đang hoạt động mới được phép.');
+    }
+    return team;
+  }
+
+  private assertAllocationProposalReviewer(
+    user: JwtPayload,
+    proposal: TeamAllocationProposal,
+  ): void {
+    if (user.role !== UserRole.MENTOR) {
+      throw new ForbiddenException('Chỉ Mentor được phân công mới được duyệt đề xuất.');
+    }
+    this.teams.assertMentorProject(user, proposal.projectId);
+    if (proposal.reviewerUserId !== user.sub) {
+      throw new ForbiddenException('Chỉ Mentor được ghi nhận trên đề xuất mới được xử lý.');
+    }
+  }
+
+  private assertProposalTeamIsCurrent(
+    user: JwtPayload,
+    proposal: TeamAllocationProposal,
+  ): void {
+    const team = this.teams.getMentorTeamForProject(user, proposal.projectId);
+    const currentMemberIds = team.members.map((member) => member.userId).sort();
+    if (
+      team.status !== 'ACTIVE' ||
+      team.id !== proposal.teamId ||
+      team.updatedAt !== proposal.teamUpdatedAt ||
+      this.teams.getTeamMemberRole(team.id, proposal.proposerUserId) !== 'LEADER' ||
+      currentMemberIds.length !== proposal.memberUserIds.length ||
+      currentMemberIds.some(
+        (userId, index) => userId !== proposal.memberUserIds[index],
+      )
+    ) {
+      throw new ConflictException(
+        'Đề xuất đã cũ do thay đổi thành viên hoặc Leader; yêu cầu cập nhật lại.',
+      );
+    }
+  }
+
+  private validateAllocationProposalInput(
+    input: TeamAllocationProposalInput,
+    currentMemberIds: string[],
+  ): void {
+    const allocationIds = Array.isArray(input?.allocations)
+      ? input.allocations.map((allocation) => allocation?.userId)
+      : [];
+    if (
+      !input ||
+      !this.isValidPeriod(input.periodStart, input.periodEnd) ||
+      !Array.isArray(input.allocations) ||
+      input.allocations.length !== currentMemberIds.length ||
+      allocationIds.some((id) => typeof id !== 'string') ||
+      new Set(allocationIds).size !== allocationIds.length ||
+      allocationIds.some(
+        (id) => typeof id !== 'string' || !currentMemberIds.includes(id),
+      ) ||
+      input.allocations.some(
+        (allocation) =>
+          !allocation ||
+          Object.keys(allocation).some(
+            (key) => key !== 'userId' && key !== 'shareBps',
+          ) ||
+          typeof allocation.userId !== 'string' ||
+          !Number.isInteger(allocation.shareBps) ||
+          allocation.shareBps < 0 ||
+          allocation.shareBps > 10000,
+      ) ||
+      input.allocations.reduce(
+        (total, allocation) =>
+          total +
+          (Number.isInteger(allocation?.shareBps) ? allocation.shareBps : 0),
+        0,
+      ) !== 10000 ||
+      !this.isText(input.rationale, 3, FEEDBACK_LIMIT)
+    ) {
+      throw new BadRequestException(
+        'Đề xuất cần kỳ hợp lệ, đủ mỗi thành viên đúng một lần, tổng tỷ lệ đúng 10000 điểm cơ bản và lý do từ 3 đến 2000 ký tự.',
+      );
+    }
+  }
+
+  private buildTeamPerformanceSummary(
+    team: TeamEntity,
+    periodStart: unknown,
+    periodEnd: unknown,
+  ): TeamPerformanceSummary {
+    if (
+      typeof periodStart !== 'string' ||
+      typeof periodEnd !== 'string' ||
+      !this.isValidPeriod(periodStart, periodEnd)
+    ) {
+      throw new BadRequestException('Khoảng ngày báo cáo không hợp lệ.');
+    }
+    const start = periodStart;
+    const end = periodEnd;
+    const memberUserIds = new Set(team.members.map((member) => member.userId));
+    const contributions = this.repository
+      .findContributionsByProject(team.projectId)
+      .filter(
+        (record) =>
+          record.teamId === team.id &&
+          memberUserIds.has(record.userId) &&
+          record.periodStart <= end &&
+          record.periodEnd >= start,
+      );
+    const evaluations = this.repository
+      .findEvaluationsByProject(team.projectId)
+      .filter(
+        (evaluation) =>
+          evaluation.teamId === team.id &&
+          memberUserIds.has(evaluation.subjectUserId) &&
+          evaluation.status === 'EVALUATION_FINAL' &&
+          evaluation.periodStart <= end &&
+          evaluation.periodEnd >= start,
+      );
+    const members = team.members.map((member) => {
+      const memberContributions = contributions
+        .filter((record) => record.userId === member.userId)
+        .map((record) => ({
+          periodStart: record.periodStart,
+          periodEnd: record.periodEnd,
+          description: record.description,
+        }));
+      return {
+        userId: member.userId,
+        contributionCount: memberContributions.length,
+        contributions: memberContributions,
+        finalizedEvaluationCount: evaluations.filter(
+          (evaluation) => evaluation.subjectUserId === member.userId,
+        ).length,
+      };
+    });
+    return {
+      teamId: team.id,
+      periodStart: start,
+      periodEnd: end,
+      totals: {
+        contributionCount: contributions.length,
+        finalizedEvaluationCount: evaluations.length,
+      },
+      members,
+    };
   }
 
   private getMentorTeam(user: JwtPayload, projectId: string): TeamEntity {
@@ -395,6 +712,18 @@ export class ReportsService {
   private assertTeamMember(team: TeamEntity, userId: string): void {
     if (!team.members.some((member) => member.userId === userId)) {
       throw new BadRequestException('Thành viên phải thuộc Team của dự án.');
+    }
+  }
+
+  private assertEvaluationSubject(user: JwtPayload, subjectUserId: string): void {
+    if (
+      (user.role !== UserRole.TALENT &&
+        user.role !== UserRole.TALENT_LEADER) ||
+      user.sub !== subjectUserId
+    ) {
+      throw new ForbiddenException(
+        'Chỉ Talent được đánh giá mới có thể xác nhận hoặc gửi phản hồi.',
+      );
     }
   }
 

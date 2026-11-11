@@ -4,10 +4,15 @@ import {
   ContributionRecord,
   CreateContributionInput,
   CreateEvaluationInput,
+  EvaluationEvent,
   ProgressReport,
   ReportContentInput,
   ReportStateEvent,
   ReportStatus,
+  AllocationProposalStatus,
+  TeamAllocationProposal,
+  TeamAllocationProposalEvent,
+  TeamAllocationProposalInput,
   TalentEvaluation,
 } from './report.types';
 
@@ -17,6 +22,7 @@ export class ReportRepository {
   private readonly reportEvents = new Map<string, ReportStateEvent[]>();
   private readonly evaluations = new Map<string, TalentEvaluation>();
   private readonly contributions = new Map<string, ContributionRecord>();
+  private readonly allocationProposals = new Map<string, TeamAllocationProposal>();
 
   createReport(
     projectId: string,
@@ -164,6 +170,10 @@ export class ReportRepository {
       status: 'EVALUATION_DRAFT',
       createdAt: new Date().toISOString(),
       finalizedAt: null,
+      candidateAcknowledgedAt: null,
+      candidateFeedback: null,
+      candidateFeedbackAt: null,
+      events: [],
     };
     this.evaluations.set(evaluation.id, evaluation);
     return this.cloneEvaluation(evaluation);
@@ -187,7 +197,7 @@ export class ReportRepository {
       .map((evaluation) => this.cloneEvaluation(evaluation));
   }
 
-  finalizeEvaluation(id: string): TalentEvaluation {
+  finalizeEvaluation(id: string, actorUserId: string): TalentEvaluation {
     const evaluation = this.evaluations.get(id);
     if (!evaluation) throw new NotFoundException('Không tìm thấy đánh giá.');
     if (evaluation.status !== 'EVALUATION_DRAFT') {
@@ -197,9 +207,57 @@ export class ReportRepository {
       ...evaluation,
       status: 'EVALUATION_FINAL',
       finalizedAt: new Date().toISOString(),
+      events: evaluation.events.map((event) => ({ ...event })),
     };
+    this.appendEvaluationEvent(finalized, actorUserId, 'FINALIZED');
     this.evaluations.set(id, finalized);
     return this.cloneEvaluation(finalized);
+  }
+
+  acknowledgeEvaluation(id: string, actorUserId: string): TalentEvaluation {
+    const evaluation = this.requireEvaluation(id);
+    if (evaluation.candidateAcknowledgedAt) {
+      return this.cloneEvaluation(evaluation);
+    }
+    const acknowledgedAt = new Date().toISOString();
+    const acknowledged: TalentEvaluation = {
+      ...evaluation,
+      candidateAcknowledgedAt: acknowledgedAt,
+      events: evaluation.events.map((event) => ({ ...event })),
+    };
+    this.appendEvaluationEvent(
+      acknowledged,
+      actorUserId,
+      'CANDIDATE_ACKNOWLEDGED',
+    );
+    this.evaluations.set(id, acknowledged);
+    return this.cloneEvaluation(acknowledged);
+  }
+
+  submitEvaluationFeedback(
+    id: string,
+    actorUserId: string,
+    feedback: string,
+  ): TalentEvaluation {
+    const evaluation = this.requireEvaluation(id);
+    if (evaluation.candidateFeedbackAt) {
+      throw new ConflictException(
+        'Bạn đã gửi phản hồi cho đánh giá này; không thể gửi trùng.',
+      );
+    }
+    const updated: TalentEvaluation = {
+      ...evaluation,
+      candidateFeedback: feedback,
+      candidateFeedbackAt: new Date().toISOString(),
+      events: evaluation.events.map((event) => ({ ...event })),
+    };
+    this.appendEvaluationEvent(
+      updated,
+      actorUserId,
+      'CANDIDATE_FEEDBACK_SUBMITTED',
+    );
+    this.evaluations.set(id, updated);
+    return this.cloneEvaluation(updated);
   }
 
   createContribution(
@@ -236,6 +294,162 @@ export class ReportRepository {
       .map((record) => ({ ...record }));
   }
 
+  createAllocationProposal(
+    projectId: string,
+    teamId: string,
+    proposerUserId: string,
+    reviewerUserId: string,
+    teamUpdatedAt: string,
+    memberUserIds: string[],
+    input: TeamAllocationProposalInput,
+  ): TeamAllocationProposal {
+    const existing = this.findAllocationProposalByTeamAndPeriod(
+      teamId,
+      input.periodStart,
+      input.periodEnd,
+    );
+    if (existing) {
+      throw new ConflictException(
+        'Đã có đề xuất phân bổ cho Team trong kỳ trùng hoặc giao nhau; hãy cập nhật đề xuất hiện có.',
+      );
+    }
+    const now = new Date().toISOString();
+    const proposal: TeamAllocationProposal = {
+      id: randomUUID(),
+      projectId,
+      teamId,
+      proposerUserId,
+      reviewerUserId,
+      teamUpdatedAt,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      allocations: input.allocations.map((allocation) => ({ ...allocation })),
+      memberUserIds: [...memberUserIds].sort(),
+      rationale: input.rationale.trim(),
+      status: 'PENDING',
+      reviewNote: null,
+      createdAt: now,
+      updatedAt: now,
+      events: [],
+    };
+    this.allocationProposals.set(proposal.id, proposal);
+    this.appendAllocationProposalEvent(
+      proposal,
+      proposerUserId,
+      'CREATED',
+      null,
+      'PENDING',
+      null,
+    );
+    return this.cloneAllocationProposal(proposal);
+  }
+
+  findAllocationProposalById(id: string): TeamAllocationProposal | null {
+    const proposal = this.allocationProposals.get(id);
+    return proposal ? this.cloneAllocationProposal(proposal) : null;
+  }
+
+  findAllocationProposalsByTeam(teamId: string): TeamAllocationProposal[] {
+    return [...this.allocationProposals.values()]
+      .filter((proposal) => proposal.teamId === teamId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((proposal) => this.cloneAllocationProposal(proposal));
+  }
+
+  findAllocationProposalByTeamAndPeriod(
+    teamId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): TeamAllocationProposal | null {
+    const proposal = [...this.allocationProposals.values()].find(
+      (item) =>
+        item.teamId === teamId &&
+        item.periodStart <= periodEnd &&
+        item.periodEnd >= periodStart,
+    );
+    return proposal ? this.cloneAllocationProposal(proposal) : null;
+  }
+
+  updateAllocationProposal(
+    id: string,
+    actorUserId: string,
+    reviewerUserId: string,
+    teamUpdatedAt: string,
+    memberUserIds: string[],
+    input: TeamAllocationProposalInput,
+  ): TeamAllocationProposal {
+    const existing = this.requireAllocationProposal(id);
+    if (!['PENDING', 'CHANGES_REQUESTED'].includes(existing.status)) {
+      throw new ConflictException('Đề xuất đã duyệt và không thể sửa.');
+    }
+    const duplicate = this.findAllocationProposalByTeamAndPeriod(
+      existing.teamId,
+      input.periodStart,
+      input.periodEnd,
+    );
+    if (duplicate && duplicate.id !== id) {
+      throw new ConflictException(
+        'Đã có đề xuất phân bổ cho Team trong kỳ trùng hoặc giao nhau.',
+      );
+    }
+    const fromStatus = existing.status;
+    const proposal: TeamAllocationProposal = {
+      ...existing,
+      proposerUserId: actorUserId,
+      reviewerUserId,
+      teamUpdatedAt,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      allocations: input.allocations.map((allocation) => ({ ...allocation })),
+      memberUserIds: [...memberUserIds].sort(),
+      rationale: input.rationale.trim(),
+      status: 'PENDING',
+      reviewNote: null,
+      updatedAt: new Date().toISOString(),
+      events: existing.events.map((event) => ({ ...event })),
+    };
+    this.allocationProposals.set(id, proposal);
+    this.appendAllocationProposalEvent(
+      proposal,
+      actorUserId,
+      'UPDATED',
+      fromStatus,
+      'PENDING',
+      null,
+    );
+    return this.cloneAllocationProposal(proposal);
+  }
+
+  transitionAllocationProposal(
+    id: string,
+    actorUserId: string,
+    action: 'APPROVED' | 'CHANGES_REQUESTED',
+    status: AllocationProposalStatus,
+    note: string | null,
+  ): TeamAllocationProposal {
+    const existing = this.requireAllocationProposal(id);
+    if (existing.status !== 'PENDING') {
+      throw new ConflictException('Chỉ đề xuất đang chờ mới được xử lý.');
+    }
+    const proposal: TeamAllocationProposal = {
+      ...existing,
+      status,
+      reviewNote: status === 'CHANGES_REQUESTED' ? note : null,
+      updatedAt: new Date().toISOString(),
+      events: existing.events.map((event) => ({ ...event })),
+    };
+    this.allocationProposals.set(id, proposal);
+    this.appendAllocationProposalEvent(
+      proposal,
+      actorUserId,
+      action,
+      existing.status,
+      status,
+      note,
+    );
+    return this.cloneAllocationProposal(proposal);
+  }
+
   getReportHistory(reportId: string): ReportStateEvent[] {
     return (this.reportEvents.get(reportId) ?? []).map((event) => ({ ...event }));
   }
@@ -245,12 +459,68 @@ export class ReportRepository {
     this.reportEvents.clear();
     this.evaluations.clear();
     this.contributions.clear();
+    this.allocationProposals.clear();
   }
 
   private requireReport(id: string): ProgressReport {
     const report = this.reports.get(id);
     if (!report) throw new NotFoundException('Không tìm thấy báo cáo.');
     return report;
+  }
+
+  private requireEvaluation(id: string): TalentEvaluation {
+    const evaluation = this.evaluations.get(id);
+    if (!evaluation) throw new NotFoundException('Không tìm thấy đánh giá.');
+    return evaluation;
+  }
+
+  private appendEvaluationEvent(
+    evaluation: TalentEvaluation,
+    actorUserId: string,
+    action: EvaluationEvent['action'],
+  ): void {
+    evaluation.events.push({
+      id: randomUUID(),
+      actorUserId,
+      action,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  private requireAllocationProposal(id: string): TeamAllocationProposal {
+    const proposal = this.allocationProposals.get(id);
+    if (!proposal) throw new NotFoundException('Không tìm thấy đề xuất phân bổ.');
+    return proposal;
+  }
+
+  private appendAllocationProposalEvent(
+    proposal: TeamAllocationProposal,
+    actorUserId: string,
+    action: TeamAllocationProposalEvent['action'],
+    fromStatus: AllocationProposalStatus | null,
+    toStatus: AllocationProposalStatus,
+    note: string | null,
+  ): void {
+    proposal.events.push({
+      id: randomUUID(),
+      actorUserId,
+      action,
+      fromStatus,
+      toStatus,
+      note,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  private cloneAllocationProposal(
+    proposal: TeamAllocationProposal,
+  ): TeamAllocationProposal {
+    return {
+      ...proposal,
+      allocations: proposal.allocations.map((allocation) => ({ ...allocation })),
+      memberUserIds: [...proposal.memberUserIds],
+      events: proposal.events.map((event) => ({ ...event })),
+    };
   }
 
   private saveRevision(
@@ -310,6 +580,7 @@ export class ReportRepository {
     return {
       ...evaluation,
       criteria: evaluation.criteria.map((criterion) => ({ ...criterion })),
+      events: evaluation.events.map((event) => ({ ...event })),
     };
   }
 }

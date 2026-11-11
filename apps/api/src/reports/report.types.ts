@@ -83,6 +83,20 @@ export interface TalentEvaluation {
   status: EvaluationStatus;
   createdAt: string;
   finalizedAt: string | null;
+  candidateAcknowledgedAt: string | null;
+  candidateFeedback: string | null;
+  candidateFeedbackAt: string | null;
+  events: EvaluationEvent[];
+}
+
+export interface EvaluationEvent {
+  id: string;
+  actorUserId: string;
+  action:
+    | 'FINALIZED'
+    | 'CANDIDATE_ACKNOWLEDGED'
+    | 'CANDIDATE_FEEDBACK_SUBMITTED';
+  createdAt: string;
 }
 
 export interface ContributionRecord {
@@ -110,4 +124,72 @@ export interface CreateContributionInput {
   periodStart: string;
   periodEnd: string;
   description: string;
+}
+
+export type AllocationProposalStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'CHANGES_REQUESTED';
+
+export interface TeamAllocation {
+  userId: string;
+  shareBps: number;
+}
+
+export interface TeamAllocationProposalInput {
+  periodStart: string;
+  periodEnd: string;
+  allocations: TeamAllocation[];
+  rationale: string;
+}
+
+export interface TeamAllocationProposalEvent {
+  id: string;
+  actorUserId: string;
+  action: 'CREATED' | 'UPDATED' | 'APPROVED' | 'CHANGES_REQUESTED';
+  fromStatus: AllocationProposalStatus | null;
+  toStatus: AllocationProposalStatus;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface TeamAllocationProposal {
+  id: string;
+  projectId: string;
+  teamId: string;
+  proposerUserId: string;
+  reviewerUserId: string;
+  teamUpdatedAt: string;
+  periodStart: string;
+  periodEnd: string;
+  allocations: TeamAllocation[];
+  memberUserIds: string[];
+  rationale: string;
+  status: AllocationProposalStatus;
+  reviewNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  events: TeamAllocationProposalEvent[];
+}
+
+export interface MemberPerformanceSummary {
+  userId: string;
+  contributionCount: number;
+  contributions: Array<{
+    periodStart: string;
+    periodEnd: string;
+    description: string;
+  }>;
+  finalizedEvaluationCount: number;
+}
+
+export interface TeamPerformanceSummary {
+  teamId: string;
+  periodStart: string;
+  periodEnd: string;
+  totals: {
+    contributionCount: number;
+    finalizedEvaluationCount: number;
+  };
+  members: MemberPerformanceSummary[];
 }

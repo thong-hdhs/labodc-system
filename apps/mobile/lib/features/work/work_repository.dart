@@ -1,8 +1,7 @@
-import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../core/api/api_client.dart';
+import '../../core/files/private_file_repository.dart';
+
+typedef WorkFile = PrivateFile;
 
 class TalentTeam {
   const TalentTeam({
@@ -146,49 +145,12 @@ class TalentReport {
   }
 }
 
-class WorkFile {
-  const WorkFile({
-    required this.id,
-    required this.fileName,
-    required this.sizeBytes,
-    required this.status,
-  });
-
-  final String id;
-  final String fileName;
-  final int sizeBytes;
-  final String status;
-
-  factory WorkFile.fromJson(Map<String, dynamic> json) {
-    final sizeBytes = json['sizeBytes'];
-    if (sizeBytes is! int) {
-      throw const FormatException('Thông tin tệp đính kèm không hợp lệ.');
-    }
-    return WorkFile(
-      id: _string(json, 'id'),
-      fileName: _string(json, 'fileName'),
-      sizeBytes: sizeBytes,
-      status: _string(json, 'status'),
-    );
-  }
-}
-
 class WorkRepository {
-  WorkRepository(this._api, {http.Client? uploadClient})
-      : _uploadClient = uploadClient ?? http.Client();
+  WorkRepository(this._api, {PrivateFileRepository? fileRepository})
+      : files = fileRepository ?? PrivateFileRepository(_api);
 
   final ApiClient _api;
-  final http.Client _uploadClient;
-
-  static const _documentTypes = <String, String>{
-    'pdf': 'application/pdf',
-    'docx':
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'xlsx':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'csv': 'text/csv',
-  };
-  static const _maxDocumentBytes = 20 * 1024 * 1024;
+  final PrivateFileRepository files;
 
   Future<TalentTeam> getMyTeam(String accessToken) async {
     return TalentTeam.fromJson(
@@ -211,60 +173,26 @@ class WorkRepository {
   Future<List<WorkFile>> getTaskFiles(
     String taskId,
     String accessToken,
-  ) async {
-    final records = await _api.getList(
-      '/tasks/${Uri.encodeComponent(taskId)}/files',
-      accessToken: accessToken,
-    );
-    return records.map(WorkFile.fromJson).toList(growable: false);
-  }
+  ) =>
+      files.getTaskFiles(taskId, accessToken);
 
   Future<List<WorkFile>> getReportFiles(
     String reportId,
     String accessToken,
-  ) async {
-    final records = await _api.getList(
-      '/reports/${Uri.encodeComponent(reportId)}/files',
-      accessToken: accessToken,
-    );
-    return records.map(WorkFile.fromJson).toList(growable: false);
-  }
+  ) =>
+      files.getReportFiles(reportId, accessToken);
 
   Future<WorkFile?> pickAndUploadTaskDocument(
     String taskId,
     String accessToken,
-  ) async {
-    final selected = await _pickDocument();
-    if (selected == null) return null;
-    final bytes = selected.bytes;
-    if (bytes == null) {
-      throw const ApiException('Không đọc được nội dung tệp đã chọn.');
-    }
-    return uploadTaskDocument(
-      taskId: taskId,
-      fileName: selected.name,
-      bytes: bytes,
-      accessToken: accessToken,
-    );
-  }
+  ) =>
+      files.pickAndUploadTaskDocument(taskId, accessToken);
 
   Future<WorkFile?> pickAndUploadReportDocument(
     String reportId,
     String accessToken,
-  ) async {
-    final selected = await _pickDocument();
-    if (selected == null) return null;
-    final bytes = selected.bytes;
-    if (bytes == null) {
-      throw const ApiException('Không đọc được nội dung tệp đã chọn.');
-    }
-    return uploadReportDocument(
-      reportId: reportId,
-      fileName: selected.name,
-      bytes: bytes,
-      accessToken: accessToken,
-    );
-  }
+  ) =>
+      files.pickAndUploadReportDocument(reportId, accessToken);
 
   Future<WorkFile> uploadTaskDocument({
     required String taskId,
@@ -272,13 +200,13 @@ class WorkRepository {
     required List<int> bytes,
     required String accessToken,
   }) =>
-      _uploadDocument(
-        fileName: fileName,
-        bytes: bytes,
-        accessToken: accessToken,
+      files.uploadBytes(
         category: 'TASK_DOCUMENT',
         resourceField: 'taskId',
         resourceId: taskId,
+        fileName: fileName,
+        bytes: bytes,
+        accessToken: accessToken,
       );
 
   Future<WorkFile> uploadReportDocument({
@@ -287,116 +215,17 @@ class WorkRepository {
     required List<int> bytes,
     required String accessToken,
   }) =>
-      _uploadDocument(
-        fileName: fileName,
-        bytes: bytes,
-        accessToken: accessToken,
+      files.uploadBytes(
         category: 'REPORT_DOCUMENT',
         resourceField: 'reportId',
         resourceId: reportId,
+        fileName: fileName,
+        bytes: bytes,
+        accessToken: accessToken,
       );
 
-  Future<void> openDownload(String fileId, String accessToken) async {
-    final response = await _api.get(
-      '/files/${Uri.encodeComponent(fileId)}/download',
-      accessToken: accessToken,
-    );
-    final url = response['downloadUrl'];
-    if (url is! String) {
-      throw const ApiException('Máy chủ không trả URL tải tệp hợp lệ.');
-    }
-    final uri = Uri.tryParse(url);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        !{'api.cloudinary.com', 'res.cloudinary.com'}.contains(uri.host)) {
-      throw const ApiException('URL tải tệp không an toàn.');
-    }
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      throw const ApiException('Không mở được liên kết tải tệp.');
-    }
-  }
-
-  Future<PlatformFile?> _pickDocument() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: _documentTypes.keys.toList(growable: false),
-      withData: true,
-    );
-    return result?.files.single;
-  }
-
-  Future<WorkFile> _uploadDocument({
-    required String fileName,
-    required List<int> bytes,
-    required String accessToken,
-    required String category,
-    required String resourceField,
-    required String resourceId,
-  }) async {
-    final extension = fileName.split('.').last.toLowerCase();
-    final mimeType = _documentTypes[extension];
-    if (mimeType == null ||
-        bytes.isEmpty ||
-        bytes.length > _maxDocumentBytes) {
-      throw const ApiException(
-        'Chỉ nhận PDF, DOCX, XLSX hoặc CSV, tối đa 20 MiB.',
-      );
-    }
-
-    final intent = await _api.post(
-      '/files/upload-intents',
-      accessToken: accessToken,
-      body: {
-        'category': category,
-        'fileName': fileName,
-        'mimeType': mimeType,
-        'sizeBytes': bytes.length,
-        resourceField: resourceId,
-      },
-    );
-    final file = intent['file'];
-    final uploadUrl = intent['uploadUrl'];
-    final fields = intent['uploadFields'];
-    if (file is! Map<String, dynamic> ||
-        uploadUrl is! String ||
-        fields is! Map<String, dynamic> ||
-        fields.values.any((value) => value is! String)) {
-      throw const ApiException('Yêu cầu tải tệp trả về không hợp lệ.');
-    }
-    final uploadUri = Uri.tryParse(uploadUrl);
-    if (uploadUri == null ||
-        uploadUri.scheme != 'https' ||
-        uploadUri.host != 'api.cloudinary.com') {
-      throw const ApiException('Địa chỉ tải tệp không an toàn.');
-    }
-    final fileId = file['id'];
-    if (fileId is! String || fileId.isEmpty) {
-      throw const ApiException('Máy chủ không trả mã tệp hợp lệ.');
-    }
-
-    final request = http.MultipartRequest('POST', uploadUri)
-      ..fields.addAll(fields.cast<String, String>())
-      ..files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: fileName,
-        ),
-      );
-    final uploadResponse = await _uploadClient.send(request);
-    if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
-      throw ApiException(
-        'Cloudinary từ chối tệp (${uploadResponse.statusCode}); chưa hoàn tất đăng ký tệp.',
-        statusCode: uploadResponse.statusCode,
-      );
-    }
-
-    final completed = await _api.post(
-      '/files/${Uri.encodeComponent(fileId)}/complete',
-      accessToken: accessToken,
-    );
-    return WorkFile.fromJson(completed);
-  }
+  Future<void> openDownload(String fileId, String accessToken) =>
+      files.openDownload(fileId, accessToken);
 
   Future<void> startTask(String taskId, String accessToken) async {
     await _api.post(

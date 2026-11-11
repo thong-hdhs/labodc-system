@@ -73,6 +73,9 @@ interface Evaluation {
   criteria: Array<{ criterion: string; feedback: string }>;
   overallFeedback: string;
   status: 'EVALUATION_DRAFT' | 'EVALUATION_FINAL';
+  candidateAcknowledgedAt?: string | null;
+  candidateFeedback?: string | null;
+  candidateFeedbackAt?: string | null;
 }
 
 interface Contribution {
@@ -82,6 +85,46 @@ interface Contribution {
   periodStart: string;
   periodEnd: string;
   description: string;
+}
+
+type AllocationProposalStatus = 'PENDING' | 'APPROVED' | 'CHANGES_REQUESTED';
+
+interface AllocationProposal {
+  id: string;
+  teamId: string;
+  proposerUserId: string;
+  periodStart: string;
+  periodEnd: string;
+  allocations: Array<{ userId: string; shareBps: number }>;
+  rationale: string;
+  status: AllocationProposalStatus;
+  reviewNote: string | null;
+  events: Array<{
+    actorUserId: string;
+    action: string;
+    createdAt: string;
+    note: string | null;
+  }>;
+}
+
+interface TeamPerformanceSummary {
+  teamId: string;
+  periodStart: string;
+  periodEnd: string;
+  totals: {
+    contributionCount: number;
+    finalizedEvaluationCount: number;
+  };
+  members: Array<{
+    userId: string;
+    contributionCount: number;
+    contributions: Array<{
+      periodStart: string;
+      periodEnd: string;
+      description: string;
+    }>;
+    finalizedEvaluationCount: number;
+  }>;
 }
 
 interface ReportForm {
@@ -103,6 +146,18 @@ const emptyReportForm: ReportForm = {
   blockers: '',
   nextSteps: '',
 };
+
+function defaultAllocationShares(members: TeamMember[]): Record<string, string> {
+  if (members.length === 0) return {};
+  const baseShare = Math.floor(10000 / members.length);
+  const remainder = 10000 - baseShare * members.length;
+  return Object.fromEntries(
+    members.map((member, index) => [
+      member.userId,
+      ((baseShare + (index < remainder ? 1 : 0)) / 100).toFixed(2),
+    ]),
+  );
+}
 
 async function apiRequest<T>(
   path: string,
@@ -138,6 +193,16 @@ export const ProgressReportsPage: React.FC = () => {
   const [reports, setReports] = useState<ProgressReport[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
+  const [allocationShares, setAllocationShares] = useState<Record<string, string>>({});
+  const [allocationPeriodStart, setAllocationPeriodStart] = useState('');
+  const [allocationPeriodEnd, setAllocationPeriodEnd] = useState('');
+  const [allocationRationale, setAllocationRationale] = useState('');
+  const [editingAllocationProposalId, setEditingAllocationProposalId] = useState('');
+  const [allocationReviewNote, setAllocationReviewNote] = useState('');
+  const [performancePeriodStart, setPerformancePeriodStart] = useState('');
+  const [performancePeriodEnd, setPerformancePeriodEnd] = useState('');
+  const [performanceSummary, setPerformanceSummary] = useState<TeamPerformanceSummary | null>(null);
   const [reportForm, setReportForm] = useState<ReportForm>(emptyReportForm);
   const [editReportId, setEditReportId] = useState('');
   const [mentorReportScope, setMentorReportScope] = useState<'TEAM' | 'PROJECT'>('TEAM');
@@ -188,6 +253,9 @@ export const ProgressReportsPage: React.FC = () => {
         }
         const data = await Promise.all(
           assignedProjects.map(async ({ project }) => {
+            const projectTeam = assignedProjects.find(
+              (item) => item.project.id === project.id,
+            )?.team;
             const [projectReports, projectEvaluations, projectContributions] =
               await Promise.all([
                 apiRequest<ProgressReport[]>(
@@ -204,6 +272,7 @@ export const ProgressReportsPage: React.FC = () => {
                 ),
               ]);
             return {
+              team: projectTeam,
               reports: projectReports,
               evaluations: projectEvaluations,
               contributions: projectContributions,
@@ -213,6 +282,22 @@ export const ProgressReportsPage: React.FC = () => {
         setReports(data.flatMap((item) => item.reports));
         setEvaluations(data.flatMap((item) => item.evaluations));
         setContributions(data.flatMap((item) => item.contributions));
+        const teamForRequests =
+          assignedProjects.find((item) => item.project.id === projectId)?.team;
+        const proposalLists = await Promise.all(
+          data.map((item) =>
+            item.team
+              ? apiRequest<AllocationProposal[]>(
+                  `/mentor/teams/${item.team.id}/allocation-proposals`,
+                  accessToken,
+                )
+              : Promise.resolve([]),
+          ),
+        );
+        setAllocationProposals(proposalLists.flat());
+        if (teamForRequests) {
+          setAllocationShares(defaultAllocationShares(teamForRequests.members));
+        }
       } else if (isLabAdmin) {
         const [allReports, allEvaluations, allContributions] = await Promise.all([
           apiRequest<ProgressReport[]>('/lab-admin/reports', accessToken),
@@ -223,13 +308,20 @@ export const ProgressReportsPage: React.FC = () => {
         setReports(allReports);
         setEvaluations(allEvaluations);
         setContributions(allContributions);
+        setAllocationProposals([]);
       } else {
-        const [myTeam, myReports, myEvaluations, myContributions] =
+        const [myTeam, myReports, myEvaluations, myContributions, proposals] =
           await Promise.all([
             apiRequest<MyTeamView>('/talent/me/team', accessToken),
             apiRequest<ProgressReport[]>('/talent/me/reports', accessToken),
             apiRequest<Evaluation[]>('/talent/me/evaluations', accessToken),
             apiRequest<Contribution[]>('/talent/me/contributions', accessToken),
+            isLeader
+              ? apiRequest<AllocationProposal[]>(
+                  '/talent/me/team/allocation-proposals',
+                  accessToken,
+                )
+              : Promise.resolve([]),
           ]);
         setProjects([
           {
@@ -240,6 +332,8 @@ export const ProgressReportsPage: React.FC = () => {
         setReports(myReports);
         setEvaluations(myEvaluations);
         setContributions(myContributions);
+        setAllocationProposals(proposals);
+        setAllocationShares(defaultAllocationShares(myTeam.members));
         setSelectedProjectId(myTeam.project.id);
       }
     } catch (loadError) {
@@ -251,7 +345,7 @@ export const ProgressReportsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, isLabAdmin, isMentor, role, selectedProjectId]);
+  }, [accessToken, isLabAdmin, isLeader, isMentor, role, selectedProjectId]);
 
   useEffect(() => {
     void load();
@@ -399,6 +493,118 @@ export const ProgressReportsPage: React.FC = () => {
   const selectedProject = projects.find(
     (item) => item.project.id === selectedProjectId,
   );
+  const enteredAllocationBps =
+    selectedProject?.team?.members.reduce((total, member) => {
+      const basisPoints = Number(allocationShares[member.userId]) * 100;
+      return total + (Number.isInteger(basisPoints) ? basisPoints : 0);
+    }, 0) ?? 0;
+
+  const saveAllocationProposal = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!accessToken || !selectedProject?.team) return;
+    const allocations = selectedProject.team.members.map((member) => {
+      const percent = Number(allocationShares[member.userId]);
+      return {
+        userId: member.userId,
+        shareBps: Number.isFinite(percent) ? percent * 100 : Number.NaN,
+      };
+    });
+    if (
+      allocations.some((allocation) => !Number.isInteger(allocation.shareBps)) ||
+      allocations.reduce((total, allocation) => total + allocation.shareBps, 0) !==
+        10000
+    ) {
+      setError('Tổng tỷ lệ phân bổ phải đúng 100,00%.');
+      return;
+    }
+    const input = {
+      periodStart: allocationPeriodStart,
+      periodEnd: allocationPeriodEnd,
+      allocations,
+      rationale: allocationRationale,
+    };
+    await runAction(
+      'save-allocation',
+      () =>
+        apiRequest(
+          editingAllocationProposalId
+            ? `/talent/me/team/allocation-proposals/${editingAllocationProposalId}`
+            : '/talent/me/team/allocation-proposals',
+          accessToken,
+          {
+            method: editingAllocationProposalId ? 'PATCH' : 'POST',
+            body: JSON.stringify(input),
+          },
+        ),
+      'Đã lưu đề xuất phân bổ để Mentor xem xét. Chưa có giao dịch tài chính nào được thực hiện.',
+    );
+    setEditingAllocationProposalId('');
+    setAllocationRationale('');
+  };
+
+  const editAllocationProposal = (proposal: AllocationProposal) => {
+    setEditingAllocationProposalId(proposal.id);
+    setAllocationPeriodStart(proposal.periodStart);
+    setAllocationPeriodEnd(proposal.periodEnd);
+    setAllocationRationale(proposal.rationale);
+    setAllocationShares(
+      Object.fromEntries(
+        proposal.allocations.map((allocation) => [
+          allocation.userId,
+          (allocation.shareBps / 100).toFixed(2),
+        ]),
+      ),
+    );
+  };
+
+  const reviewAllocationProposal = (
+    proposal: AllocationProposal,
+    action: 'approve' | 'request-changes',
+  ) =>
+    runAction(
+      `${action}-${proposal.id}`,
+      () =>
+        apiRequest(
+          `/mentor/allocation-proposals/${proposal.id}/${action}`,
+          accessToken ?? '',
+          {
+            method: 'POST',
+            ...(action === 'request-changes'
+              ? { body: JSON.stringify({ note: allocationReviewNote }) }
+              : {}),
+          },
+        ),
+      action === 'approve'
+        ? 'Đã duyệt đề xuất nội bộ; không có giao dịch tài chính nào được thực hiện.'
+        : 'Đã yêu cầu Leader chỉnh sửa đề xuất.',
+    );
+
+  const loadPerformanceSummary = () => {
+    if (!accessToken || !selectedProject) return;
+    const teamId = selectedProject.team?.id;
+    if (isMentor && !teamId) {
+      setError('Dự án chưa có Team để tổng hợp hiệu suất.');
+      return;
+    }
+    void runAction(
+      'team-performance',
+      async () => {
+        const query = new URLSearchParams({
+          periodStart: performancePeriodStart,
+          periodEnd: performancePeriodEnd,
+        });
+        const endpoint = isMentor
+          ? `/mentor/teams/${teamId}/performance?${query}`
+          : `/talent/me/team/performance?${query}`;
+        const summary = await apiRequest<TeamPerformanceSummary>(
+          endpoint,
+          accessToken,
+        );
+        setPerformanceSummary(summary);
+      },
+      'Đã tổng hợp đóng góp và số đánh giá đã chốt.',
+    );
+  };
 
   const reviewAction = (
     report: ProgressReport,
@@ -670,6 +876,264 @@ export const ProgressReportsPage: React.FC = () => {
         </section>
       )}
 
+      {isLeader && selectedProject?.team && (
+        <section>
+          <h2>Đề xuất phân bổ nội bộ</h2>
+          <p>
+            Tỷ lệ áp dụng trong phần 70% của Team, tổng tỷ lệ thành viên phải là
+            100%. Đây chỉ là đề xuất cần Mentor duyệt, không tạo thanh toán và
+            không thay đổi ledger.
+          </p>
+          <form onSubmit={saveAllocationProposal}>
+            <label>
+              Từ ngày
+              <input
+                type="date"
+                required
+                value={allocationPeriodStart}
+                onChange={(event) => setAllocationPeriodStart(event.target.value)}
+              />
+            </label>
+            <label>
+              Đến ngày
+              <input
+                type="date"
+                required
+                value={allocationPeriodEnd}
+                onChange={(event) => setAllocationPeriodEnd(event.target.value)}
+              />
+            </label>
+            {selectedProject.team.members.map((member) => (
+              <label key={member.userId} style={{ display: 'block', marginTop: 8 }}>
+                {member.fullName} — tỷ lệ (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  required
+                  value={allocationShares[member.userId] ?? ''}
+                  onChange={(event) =>
+                    setAllocationShares({
+                      ...allocationShares,
+                      [member.userId]: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            ))}
+            <p>Tổng tỷ lệ: {(enteredAllocationBps / 100).toFixed(2)}% / 100,00%</p>
+            <label style={{ display: 'block', marginTop: 8 }}>
+              Lý do đề xuất
+              <textarea
+                required
+                minLength={3}
+                maxLength={2000}
+                value={allocationRationale}
+                onChange={(event) => setAllocationRationale(event.target.value)}
+              />
+            </label>
+            <button type="submit" disabled={Boolean(busy)}>
+              {editingAllocationProposalId
+                ? 'Cập nhật đề xuất'
+                : 'Gửi đề xuất'}
+            </button>
+            {editingAllocationProposalId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAllocationProposalId('');
+                  setAllocationRationale('');
+                  setAllocationShares(
+                    defaultAllocationShares(selectedProject.team!.members),
+                  );
+                }}
+              >
+                Hủy chỉnh sửa
+              </button>
+            )}
+          </form>
+          <h3>Lịch sử đề xuất</h3>
+          {allocationProposals.length === 0 && <p>Chưa có đề xuất phân bổ.</p>}
+          {allocationProposals.map((proposal) => (
+            <article
+              key={proposal.id}
+              style={{ border: '1px solid #ddd', padding: 12, margin: '12px 0' }}
+            >
+              <p>
+                Kỳ: {proposal.periodStart} — {proposal.periodEnd} ·{' '}
+                <strong>{proposal.status}</strong>
+              </p>
+              <p>{proposal.rationale}</p>
+              <ul>
+                {proposal.allocations.map((allocation) => (
+                  <li key={allocation.userId}>
+                    {selectedProject.team!.members.find(
+                      (member) => member.userId === allocation.userId,
+                    )?.fullName ?? allocation.userId}
+                    : {(allocation.shareBps / 100).toFixed(2)}%
+                  </li>
+                ))}
+              </ul>
+              {proposal.reviewNote && <p>Phản hồi Mentor: {proposal.reviewNote}</p>}
+              {proposal.events.map((event) => (
+                <p key={`${proposal.id}-${event.createdAt}-${event.action}`}>
+                  {event.createdAt} — {event.action}
+                  {event.note ? `: ${event.note}` : ''}
+                </p>
+              ))}
+              {proposal.status !== 'APPROVED' && (
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => editAllocationProposal(proposal)}
+                >
+                  Chỉnh sửa đề xuất
+                </button>
+              )}
+            </article>
+          ))}
+        </section>
+      )}
+
+      {isMentor && selectedProject?.team && (
+        <section>
+          <h2>Duyệt đề xuất phân bổ nội bộ</h2>
+          {allocationProposals
+            .filter((proposal) => proposal.teamId === selectedProject.team?.id)
+            .map((proposal) => (
+              <article
+                key={proposal.id}
+                style={{ border: '1px solid #ddd', padding: 12, margin: '12px 0' }}
+              >
+                <p>
+                  Kỳ: {proposal.periodStart} — {proposal.periodEnd} ·{' '}
+                  <strong>{proposal.status}</strong>
+                </p>
+                <p>Leader: {proposal.proposerUserId}</p>
+                <p>{proposal.rationale}</p>
+                <ul>
+                  {proposal.allocations.map((allocation) => (
+                    <li key={allocation.userId}>
+                      {selectedProject.team!.members.find(
+                        (member) => member.userId === allocation.userId,
+                      )?.fullName ?? allocation.userId}
+                      : {(allocation.shareBps / 100).toFixed(2)}%
+                    </li>
+                  ))}
+                </ul>
+                {proposal.reviewNote && <p>Ghi chú: {proposal.reviewNote}</p>}
+                {proposal.status === 'PENDING' && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={Boolean(busy)}
+                      onClick={() => void reviewAllocationProposal(proposal, 'approve')}
+                    >
+                      Duyệt đề xuất
+                    </button>
+                    <label>
+                      Yêu cầu chỉnh sửa
+                      <input
+                        value={allocationReviewNote}
+                        onChange={(event) =>
+                          setAllocationReviewNote(event.target.value)
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={Boolean(busy) || allocationReviewNote.trim().length < 3}
+                      onClick={() =>
+                        void reviewAllocationProposal(proposal, 'request-changes')
+                      }
+                    >
+                      Trả yêu cầu chỉnh sửa
+                    </button>
+                  </>
+                )}
+              </article>
+            ))}
+          {allocationProposals.filter(
+            (proposal) =>
+              proposal.teamId === selectedProject.team?.id &&
+              proposal.status === 'PENDING',
+          ).length === 0 && <p>Không có đề xuất đang chờ duyệt.</p>}
+        </section>
+      )}
+
+      {(isLeader || (isMentor && Boolean(selectedProject?.team))) && (
+        <section>
+          <h2>Báo cáo hiệu suất nhóm</h2>
+          <p>
+            Tổng hợp đóng góp và số đánh giá đã chốt trong kỳ; không hiển thị
+            nội dung phản hồi đánh giá hoặc tự tạo điểm số.
+          </p>
+          <label>
+            Từ ngày
+            <input
+              type="date"
+              required
+              value={performancePeriodStart}
+              onChange={(event) => {
+                setPerformancePeriodStart(event.target.value);
+                setPerformanceSummary(null);
+              }}
+            />
+          </label>
+          <label>
+            Đến ngày
+            <input
+              type="date"
+              required
+              value={performancePeriodEnd}
+              onChange={(event) => {
+                setPerformancePeriodEnd(event.target.value);
+                setPerformanceSummary(null);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={Boolean(busy) || !performancePeriodStart || !performancePeriodEnd}
+            onClick={loadPerformanceSummary}
+          >
+            Tổng hợp hiệu suất
+          </button>
+          {performanceSummary && (
+            <div>
+              <p>
+                Kỳ: {performanceSummary.periodStart} — {performanceSummary.periodEnd}
+              </p>
+              <p>
+                Tổng: {performanceSummary.totals.contributionCount} đóng góp ·{' '}
+                {performanceSummary.totals.finalizedEvaluationCount} đánh giá đã chốt
+              </p>
+              {performanceSummary.members.map((member) => (
+                <article key={member.userId}>
+                  <h3>
+                    {selectedProject?.team?.members.find(
+                      (item) => item.userId === member.userId,
+                    )?.fullName ?? member.userId}
+                  </h3>
+                  <p>
+                    {member.contributionCount} đóng góp ·{' '}
+                    {member.finalizedEvaluationCount} đánh giá đã chốt
+                  </p>
+                  <ul>
+                    {member.contributions.map((item, index) => (
+                      <li key={`${member.userId}-${item.periodStart}-${index}`}>
+                        {item.periodStart} — {item.periodEnd}: {item.description}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       <section>
         <h2>Báo cáo ({reports.length})</h2>
         {reports.length === 0 && <p>Chưa có báo cáo.</p>}
@@ -765,6 +1229,18 @@ export const ProgressReportsPage: React.FC = () => {
               </p>
             ))}
             <p>{evaluation.overallFeedback}</p>
+            {isMentor && (
+              <>
+                <p>
+                  Talent xác nhận đã nhận:{' '}
+                  {evaluation.candidateAcknowledgedAt ?? 'Chưa xác nhận'}
+                </p>
+                <p>
+                  Phản hồi từ Talent:{' '}
+                  {evaluation.candidateFeedback ?? 'Chưa có phản hồi'}
+                </p>
+              </>
+            )}
             {isMentor && evaluation.status === 'EVALUATION_DRAFT' && (
               <button
                 disabled={Boolean(busy)}
