@@ -19,3 +19,15 @@
 - `npm run test:e2e --workspace @labodc/api -- --runInBand test/d17-d18-evaluations-reports.e2e-spec.ts` — 10 tests PASS, bao gồm tổng tỷ lệ, thành viên ngoài Team, trạng thái duyệt/sửa, Mentor sai quyền, dữ liệu stale và giới hạn riêng tư.
 - `npm run test --workspace @labodc/api -- --runInBand` — 41 suites / 104 tests PASS.
 - `git diff --check` sạch tại thời điểm ghi nhận.
+
+---
+
+# Phần Báo cáo Ngày D26 của Sinh viên A — Liên thông Đánh giá Hiệu suất Mobile (`Evaluations`) với Quyết toán Quỹ 70% Nhóm Sinh viên, Kiểm toán Bảo mật File Riêng tư & Đóng Cổng Gate D26 (`GATE_D26_MOBILE_FULL_PARITY_AND_EVAL_BRIDGE`)
+
+> **Người phụ trách:** Sinh viên A phối hợp đồng bộ với bản cập nhật Mobile D26 của Sinh viên B (`apps/mobile/lib/features/evaluations/*` & `apps/mobile/test/features/evaluations/*`)  
+> **Đầu ra:** Migration `022_a_mobile_evaluations_payout_bridge_and_gate_d26.sql`, `MobileEvaluationBridgeService` & `MobileEvaluationBridgeController` (`apps/api/src/system-admin/*`), Giao diện `MobileEvaluationBridgeD26Panel.tsx`, Unit Test `mobile-evaluation-bridge.service.spec.ts` và E2E Test `d26-mobile-evaluations-payout-bridge.e2e-spec.ts` Pass 100%.
+
+| Mã Gate / Req | Hạng mục công việc Full-Stack của Sinh viên A (Ngày D26) | Đường dẫn File / Module thuộc quyền sở hữu của A | Trạng thái | Bằng chứng Kiểm thử |
+| :--- | :--- | :--- | :---: | :--- |
+| **Gate D26** *(DB Migration)* | Thiết kế Migration `022_a_mobile_evaluations_payout_bridge_and_gate_d26.sql` (`evaluation_payout_reconciliations`, `gate_d26_mobile_full_parity_signoffs`) | `apps/api/src/database/migrations/022_a_mobile_evaluations_payout_bridge_and_gate_d26.sql` | **Hoàn thành (100%)** | Đồng bộ chuẩn Schema D3 |
+| **Evaluation – Payout Bridge** | Xây dựng API Đối soát Điểm đánh giá đóng góp trên Mobile với Quỹ 70% Nhóm SV (`POST /api/v1/system-admin/mobile-eval-bridge/reconcile-payout`) và Ký Nghiệm thu Cổng Tương đương Toàn diện Gate D26 (`POST /api/v1/system-admin/mobile-eval-bridge/gate-d26-signoff`) | `apps/api/src/system-admin/mobile-evaluation-bridge.types.ts`<br>`apps/api/src/system-admin/mobile-evaluation-bridge.service.ts`<br>`apps/api/src/system-admin/mobile-evaluation-bridge.controller.ts`<br>`apps/web/src/features/system-admin/MobileEvaluationBridgeD26Panel.tsx` | **Hoàn thành (100%)** | Pass Unit Test `Unit-EVAL-D26-01` & E2E `TC-BRIDGE-D26-01` |

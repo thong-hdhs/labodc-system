@@ -19,6 +19,12 @@ import { PostGoliveHypercareController } from './post-golive-hypercare.controlle
 import { PostGoliveHypercareService } from './post-golive-hypercare.service';
 import { AcademicDefenseController } from './academic-defense.controller';
 import { AcademicDefenseService } from './academic-defense.service';
+import { MobilePhase2SyncController } from './mobile-phase2-sync.controller';
+import { MobilePhase2SyncService } from './mobile-phase2-sync.service';
+import { MobileEvaluationBridgeController } from './mobile-evaluation-bridge.controller';
+import { MobileEvaluationBridgeService } from './mobile-evaluation-bridge.service';
+import { CodeFreezeD27Controller } from './code-freeze-d27.controller';
+import { CodeFreezeD27Service } from './code-freeze-d27.service';
 
 @Module({
   imports: [AuthModule, EnterpriseModule, ProjectsModule, PaymentsModule],
@@ -31,6 +37,9 @@ import { AcademicDefenseService } from './academic-defense.service';
     FinalArchivalController,
     PostGoliveHypercareController,
     AcademicDefenseController,
+    MobilePhase2SyncController,
+    MobileEvaluationBridgeController,
+    CodeFreezeD27Controller,
   ],
   providers: [
     SystemAdminService,
@@ -41,6 +50,9 @@ import { AcademicDefenseService } from './academic-defense.service';
     FinalArchivalService,
     PostGoliveHypercareService,
     AcademicDefenseService,
+    MobilePhase2SyncService,
+    MobileEvaluationBridgeService,
+    CodeFreezeD27Service,
   ],
   exports: [
     SystemAdminService,
@@ -51,6 +63,9 @@ import { AcademicDefenseService } from './academic-defense.service';
     FinalArchivalService,
     PostGoliveHypercareService,
     AcademicDefenseService,
+    MobilePhase2SyncService,
+    MobileEvaluationBridgeService,
+    CodeFreezeD27Service,
   ],
 })
 export class SystemAdminModule {}
